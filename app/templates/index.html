@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CiscoToolsV2 - Interactive Network Control Center</title>
+
+    <!-- Google Fonts & Vis.js Topology CDN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+    <!-- App Styling -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <span class="logo-icon">🌐</span>
+            <h1>CiscoTools<span class="highlight">V2</span></h1>
+        </div>
+        <div class="nav-stats">
+            <span class="badge badge-purple">🚀 FastAPI Engine</span>
+            <span class="badge badge-cyan">🗄️ SQLite DB</span>
+            <span class="badge badge-teal">⏰ Auto-Refresh: 24h</span>
+            <button class="btn btn-sm btn-outline" onclick="openWizardModal()">⚙️ Settings</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        
+        <!-- Top Toolbar & Control Actions -->
+        <section class="card control-bar">
+            <div class="actions-group">
+                <button class="btn btn-purple" onclick="runAction('crawl_cdp')">
+                    <span class="btn-icon">🕸️</span> Smart CDP Crawler
+                </button>
+                <button class="btn btn-cyan" onclick="runAction('scan')">
+                    <span class="btn-icon">🔍</span> Scan Subnet
+                </button>
+                <button class="btn btn-blue" onclick="runAction('collect')">
+                    <span class="btn-icon">📥</span> Collect Data
+                </button>
+                <button class="btn btn-green" onclick="runAction('full_sequence')">
+                    <span class="btn-icon">🚀</span> Run Full Sequence
+                </button>
+                <button class="btn btn-pink" onclick="runAction('check_status')">
+                    <span class="btn-icon">💓</span> Check Status
+                </button>
+            </div>
+            <div class="status-bar">
+                <span>Status: <strong id="action-status" class="status-idle">Idle</strong></span>
+            </div>
+        </section>
+
+        <!-- Split View: Interactive Map & Live Console -->
+        <div class="grid-layout">
+
+            <!-- Main Interactive Canvas Card -->
+            <section class="card map-card">
+                <div class="card-header card-header-flex">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchTab('tab-topology')">🗺️ Interactive Topology</button>
+                        <button class="tab-btn" onclick="switchTab('tab-switches')">🖥️ Switch Inventory</button>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-sm btn-outline" onclick="toggleTopologyFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>
+                        <button class="btn btn-sm" onclick="reloadCurrentTab()">🔄 Refresh View</button>
+                    </div>
+                </div>
+
+                <div class="tab-contents">
+                    
+                    <!-- Interactive Vis.js Topology Canvas -->
+                    <div id="tab-topology" class="tab-pane active">
+                        <div id="vis-topology-container"></div>
+                        <div class="topology-legend">
+                            <span>🔵 Switch</span>
+                            <span>🟣 Neighbor / Device</span>
+                            <span>↔ Inter-Switch Link</span>
+                            <small>(Drag nodes, scroll to zoom, click to inspect)</small>
+                        </div>
+                    </div>
+
+                    <!-- Switch Inventory Table -->
+                    <div id="tab-switches" class="tab-pane">
+                        <div class="table-container">
+                            <table id="switches-table">
+                                <thead>
+                                    <tr>
+                                        <th>IP Address</th>
+                                        <th>Hostname</th>
+                                        <th>Model</th>
+                                        <th>Serial Number</th>
+                                        <th>IOS Version</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="7" class="text-center">No switches found in database. Complete setup or run scan.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Live Terminal Output Console -->
+            <section class="card log-card">
+                <div class="card-header card-header-flex">
+                    <h3>💻 Real-Time Execution Console</h3>
+                    <button class="btn-clear" onclick="clearConsole()">Clear Console</button>
+                </div>
+                <div class="terminal-container">
+                    <pre id="terminal-output">Ready. Select an action to begin...</pre>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- First-Time Setup Wizard Modal -->
+    <div id="wizard-modal" class="modal-overlay {% if not is_configured %}active{% endif %}" onclick="if(event.target===this) closeWizardModal()">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <h2>⚙️ Network Settings</h2>
+                    <button type="button" class="modal-close-btn" onclick="closeWizardModal()" title="Close">&times;</button>
+                </div>
+                <p>Welcome to CiscoToolsV2! Configure your network settings to initialize discovery.</p>
+            </div>
+            <form id="wizard-form" onsubmit="saveSetup(event)">
+                <div class="form-group">
+                    <label for="wiz-subnet">Target Subnet (CIDR) <span class="required">*Required</span></label>
+                    <input type="text" id="wiz-subnet" placeholder="e.g. 192.168.30.0/24" value="{{ settings.subnet or '' }}" required>
+                    <small>Specify the Class C or B subnet range for discovery.</small>
+                </div>
+                <div class="form-group">
+                    <label for="wiz-seed">Seed Switch IP(s) (Optional)</label>
+                    <input type="text" id="wiz-seed" placeholder="e.g. 192.168.30.10, 192.168.30.11" value="{{ settings.seed_ips or '' }}">
+                    <small>Core switch IP for fast CDP crawling.</small>
+                </div>
+                <div class="form-group">
+                    <label for="wiz-user">Cisco Login Username</label>
+                    <input type="text" id="wiz-user" placeholder="Leave blank if not required" value="{{ settings.username or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="wiz-pass">Cisco Login Password</label>
+                    <input type="password" id="wiz-pass" placeholder="Enter switch enable password" value="{{ settings.password or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="wiz-type">Protocol</label>
+                    <select id="wiz-type">
+                        <option value="cisco_ios_telnet" {% if settings.device_type == 'cisco_ios_telnet' %}selected{% endif %}>Telnet (cisco_ios_telnet)</option>
+                        <option value="cisco_ios_ssh" {% if settings.device_type == 'cisco_ios_ssh' %}selected{% endif %}>SSH (cisco_ios_ssh)</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-green btn-full">
+                        🚀 Save Settings & Launch Setup Scan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Switch Details Modal -->
+    <div id="switch-details-modal" class="modal-overlay" onclick="if(event.target===this) closeSwitchDetailsModal()">
+        <div class="modal-card modal-card-wide">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <h2 id="sw-modal-title">🖥️ Switch Details</h2>
+                    <button type="button" class="modal-close-btn" onclick="closeSwitchDetailsModal()" title="Close">&times;</button>
+                </div>
+                <p id="sw-modal-subtitle">Comprehensive device information and configuration</p>
+            </div>
+            <div class="modal-body" id="sw-modal-body">
+                <div class="text-center text-muted" style="padding: 30px;">Loading switch details...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- App JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

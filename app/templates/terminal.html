@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cisco Terminal - {{ switch_ip }}</title>
+
+    <!-- Xterm.js CSS & JS CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            font-family: 'Consolas', 'Courier New', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            background: #0f172a;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .status-connecting { background: rgba(234, 179, 8, 0.2); color: #fde047; }
+        .status-connected { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+        .status-disconnected { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        
+        .controls {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+        #terminal-container {
+            flex: 1;
+            padding: 10px;
+            background: #030712;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-title">
+            <span>📟 Telnet Terminal:</span>
+            <code id="target-ip">{{ switch_ip }}</code>
+            <span id="conn-status" class="status-badge status-connecting">Connecting...</span>
+        </div>
+        <div class="controls">
+            <button class="btn" onclick="connectWebSocket()">🔄 Reconnect</button>
+            <button class="btn" onclick="clearTerminal()">🧹 Clear</button>
+        </div>
+    </div>
+
+    <div id="terminal-container"></div>
+
+    <script>
+        const switchIp = "{{ switch_ip }}";
+        let term, fitAddon, ws;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTerminal();
+            connectWebSocket();
+        });
+
+        function initTerminal() {
+            term = new Terminal({
+                cursorBlink: true,
+                fontFamily: 'Consolas, "Courier New", monospace',
+                fontSize: 14,
+                theme: {
+                    background: '#030712',
+                    foreground: '#f8fafc',
+                    cursor: '#38bdf8',
+                    selectionBackground: '#334155'
+                }
+            });
+
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+
+            const container = document.getElementById('terminal-container');
+            term.open(container);
+            fitAddon.fit();
+
+            window.addEventListener('resize', () => fitAddon.fit());
+
+            term.onData(data => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                }
+            });
+        }
+
+        function connectWebSocket() {
+            const statusEl = document.getElementById('conn-status');
+            statusEl.className = 'status-badge status-connecting';
+            statusEl.textContent = 'Connecting...';
+
+            if (ws) {
+                ws.close();
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/terminal/${encodeURIComponent(switchIp)}`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                statusEl.className = 'status-badge status-connected';
+                statusEl.textContent = 'Connected';
+            };
+
+            ws.onmessage = (event) => {
+                term.write(event.data);
+            };
+
+            ws.onerror = (err) => {
+                console.error('WebSocket Error:', err);
+                statusEl.className = 'status-badge status-disconnected';
+                statusEl.textContent = 'Error';
+            };
+
+            ws.onclose = () => {
+                statusEl.className = 'status-badge status-disconnected';
+                statusEl.textContent = 'Disconnected';
+            };
+        }
+
+        function clearTerminal() {
+            if (term) term.clear();
+        }
+    </script>
+</body>
+</html>
