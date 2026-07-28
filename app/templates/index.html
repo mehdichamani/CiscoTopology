@@ -3,167 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CiscoToolsV2 - Interactive Network Control Center</title>
+    <title>CiscoToolsV2 - Network Intelligence & Switch Control</title>
 
-    <!-- Google Fonts & Vis.js Topology CDN -->
+    <!-- Google Fonts: Cormorant Garamond (Editorial Serif), Inter, Vazirmatn & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Vis.js Topology CDN -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
-    <!-- App Styling -->
+    <!-- App Design Styling -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-    <!-- Header Navbar -->
-    <header class="navbar">
-        <div class="nav-brand">
-            <span class="logo-icon">🌐</span>
-            <h1>CiscoTools<span class="highlight">V2</span></h1>
+    <!-- Top Editorial Navbar -->
+    <header class="top-nav">
+        <div class="nav-brand-container">
+            <!-- Anthropic 4-Spoke Radial Spike Mark -->
+            <svg class="brand-spike-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2L13.8 9.2L21 11L13.8 12.8L12 20L10.2 12.8L3 11L10.2 9.2L12 2Z"/>
+            </svg>
+            <h1 class="brand-title">
+                <span data-i18n="brand">CiscoTools</span>
+                <span class="brand-accent">V2</span>
+            </h1>
+            <span class="brand-subtitle-badge" data-i18n="brandSubtitle">سامانه هوشمند پایش و کشف شبکه</span>
         </div>
-        <div class="nav-stats">
-            <span class="badge badge-purple">🚀 FastAPI Engine</span>
-            <span class="badge badge-cyan">🗄️ SQLite DB</span>
-            <span class="badge badge-teal">⏰ Auto-Refresh: 24h</span>
-            <button class="btn btn-sm btn-outline" onclick="openWizardModal()">⚙️ Settings</button>
+
+        <div class="nav-controls">
+            <span class="badge-pill" data-i18n="fastApiEngine">⚡ موتور FastAPI</span>
+            <span class="badge-pill" data-i18n="sqliteDb">🗄️ دیتابیس SQLite</span>
+            <button class="btn btn-icon-circular" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Light/Dark Theme" aria-label="Toggle Theme">🌙</button>
+            <button class="btn btn-sm btn-secondary" onclick="toggleLanguage()" id="lang-toggle-btn" title="Switch Language">🌐 EN</button>
+            <button class="btn btn-sm btn-primary" onclick="openWizardModal()"><span data-i18n="settings">⚙️ تنظیمات</span></button>
         </div>
     </header>
 
     <!-- Main Container -->
-    <div class="container">
-        
-        <!-- Top Toolbar & Control Actions -->
-        <section class="card control-bar">
-            <div class="actions-group">
-                <button class="btn btn-purple" onclick="runAction('crawl_cdp')">
-                    <span class="btn-icon">🕸️</span> Smart CDP Crawler
-                </button>
-                <button class="btn btn-cyan" onclick="runAction('scan')">
-                    <span class="btn-icon">🔍</span> Scan Subnet
-                </button>
-                <button class="btn btn-blue" onclick="runAction('collect')">
-                    <span class="btn-icon">📥</span> Collect Data
-                </button>
-                <button class="btn btn-green" onclick="runAction('full_sequence')">
-                    <span class="btn-icon">🚀</span> Run Full Sequence
-                </button>
-                <button class="btn btn-pink" onclick="runAction('check_status')">
-                    <span class="btn-icon">💓</span> Check Status
-                </button>
+    <main class="main-container">
+
+        <!-- Hero Header & Task Control Center -->
+        <section class="hero-section">
+            <div class="hero-header">
+                <div class="hero-title-group">
+                    <h2 data-i18n="brandSubtitle">سامانه هوشمند پایش و کشف شبکه</h2>
+                    <p data-i18n="settingsWizardDesc">پایش خودکار سوئیچ‌ها، ترسیم توپولوژی زنده و بررسی وضعیت کارکرد تجهیزات Cisco</p>
+                </div>
+                <div class="hero-quick-actions">
+                    <span class="form-hint" style="margin:0 4px;" data-i18n="quickActions">عملیات سریع:</span>
+                    <button class="btn btn-coral-pill" onclick="runAction('full_sequence')" data-i18n="fullScanSequence">🚀 اسکن و جمع‌آوری کامل</button>
+                    <button class="btn btn-coral-pill" onclick="runAction('crawl_cdp')" data-i18n="cdpCrawl">🕸️ پیگیری CDP</button>
+                    <button class="btn btn-coral-pill" onclick="runAction('check_status')" data-i18n="statusCheck">💓 پایش وضعیت</button>
+                </div>
             </div>
+
+            <!-- Task Cards Grid -->
+            <div class="tasks-grid">
+                
+                <!-- Task 1: Discovery -->
+                <div class="task-card" id="card-task_discovery">
+                    <div class="task-card-header">
+                        <label class="switch-toggle" data-i18n-title="toggleDiscoveryTitle" title="فعال/غیرفعال‌سازی اسکن خودکار">
+                            <input type="checkbox" id="toggle-task_discovery" onchange="toggleTask('task_discovery', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                        <div class="task-card-info">
+                            <h3 data-i18n="taskDiscovery">🔍 کشف دستگاه‌های جدید</h3>
+                            <p data-i18n="taskDiscoveryDesc">اسکن خودکار زیرشبکه جهت ردیابی سوئیچ‌ها</p>
+                        </div>
+                    </div>
+                    <div class="task-card-footer">
+                        <span class="schedule-badge" onclick="editTaskInterval('task_discovery')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
+                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_discovery">60</span> <span data-i18n="minutes">دقیقه</span>
+                        </span>
+                        <button class="btn btn-sm btn-secondary" onclick="runAction('scan')" data-i18n="manualRun">▶ اجرای دستی</button>
+                    </div>
+                </div>
+
+                <!-- Task 2: Switch Collector -->
+                <div class="task-card" id="card-task_collector">
+                    <div class="task-card-header">
+                        <label class="switch-toggle" data-i18n-title="toggleCollectorTitle" title="فعال/غیرفعال‌سازی بروزرسانی اطلاعات">
+                            <input type="checkbox" id="toggle-task_collector" onchange="toggleTask('task_collector', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                        <div class="task-card-info">
+                            <h3 data-i18n="taskCollector">📥 بروزرسانی اطلاعات سوئیچ‌ها</h3>
+                            <p data-i18n="taskCollectorDesc">جمع‌آوری VLANها، همسایه‌ها و پورت‌ها</p>
+                        </div>
+                    </div>
+                    <div class="task-card-footer">
+                        <span class="schedule-badge" onclick="editTaskInterval('task_collector')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
+                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_collector">1440</span> <span data-i18n="minutes">دقیقه</span>
+                        </span>
+                        <button class="btn btn-sm btn-secondary" onclick="runAction('full_sequence')" data-i18n="manualRun">▶ اجرای دستی</button>
+                    </div>
+                </div>
+
+                <!-- Task 3: Status Check -->
+                <div class="task-card" id="card-task_status">
+                    <div class="task-card-header">
+                        <label class="switch-toggle" data-i18n-title="toggleStatusTitle" title="فعال/غیرفعال‌سازی پایش وضعیت آنلاین">
+                            <input type="checkbox" id="toggle-task_status" onchange="toggleTask('task_status', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                        <div class="task-card-info">
+                            <h3 data-i18n="taskStatus">💓 بررسی آنلاین بودن سوئیچ‌ها</h3>
+                            <p data-i18n="taskStatusDesc">پایش وضعیت ارتباطی و پاسخ‌دهی دستگاه‌ها</p>
+                        </div>
+                    </div>
+                    <div class="task-card-footer">
+                        <span class="schedule-badge" onclick="editTaskInterval('task_status')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
+                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_status">1</span> <span data-i18n="minutes">دقیقه</span>
+                        </span>
+                        <button class="btn btn-sm btn-secondary" onclick="runAction('check_status')" data-i18n="manualRun">▶ اجرای دستی</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Global Action Status Bar -->
             <div class="status-bar">
-                <span>Status: <strong id="action-status" class="status-idle">Idle</strong></span>
+                <span data-i18n="actionStatusLabel">وضعیت سیستم:</span>
+                <span id="action-status" class="status-badge status-idle" data-i18n="idleStatus">آماده به کار</span>
             </div>
         </section>
 
-        <!-- Split View: Interactive Map & Live Console -->
-        <div class="grid-layout">
+        <!-- Main Workspace: Interactive Canvas & Terminal Console -->
+        <div class="workspace-grid">
 
-            <!-- Main Interactive Canvas Card -->
-            <section class="card map-card">
-                <div class="card-header card-header-flex">
-                    <div class="tabs">
-                        <button class="tab-btn active" onclick="switchTab('tab-topology')">🗺️ Interactive Topology</button>
-                        <button class="tab-btn" onclick="switchTab('tab-switches')">🖥️ Switch Inventory</button>
+            <!-- Tabbed Visualization Card -->
+            <section class="card-section">
+                <div class="card-header-row">
+                    <div class="tabs-container">
+                        <button class="category-tab active" onclick="switchTab('tab-topology')" data-i18n="interactiveTopology">🗺️ نقشه توپولوژی تعاملی</button>
+                        <button class="category-tab" onclick="switchTab('tab-switches')" data-i18n="switchInventory">🖥️ فهرست سوئیچ‌ها</button>
                     </div>
-                    <div class="header-actions">
-                        <button class="btn btn-sm btn-outline" onclick="toggleTopologyFullscreen()" title="Toggle Fullscreen">⛶ Fullscreen</button>
-                        <button class="btn btn-sm" onclick="reloadCurrentTab()">🔄 Refresh View</button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-sm btn-secondary" onclick="toggleTopologyFullscreen()" title="Toggle Fullscreen" data-i18n="fullscreen">⛶ تمام‌صفحه</button>
+                        <button class="btn btn-sm btn-secondary" onclick="reloadCurrentTab()" data-i18n="refreshView">🔄 بروزرسانی</button>
                     </div>
                 </div>
 
                 <div class="tab-contents">
                     
-                    <!-- Interactive Vis.js Topology Canvas -->
+                    <!-- Vis.js Interactive Topology Tab -->
                     <div id="tab-topology" class="tab-pane active">
                         <div id="vis-topology-container"></div>
                         <div class="topology-legend">
-                            <span>🔵 Switch</span>
-                            <span>🟣 Neighbor / Device</span>
-                            <span>↔ Inter-Switch Link</span>
-                            <small>(Drag nodes, scroll to zoom, click to inspect)</small>
+                            <span class="legend-item"><span class="legend-dot legend-dot-switch"></span> <span data-i18n="switchLegend">سوئیچ شبکه</span></span>
+                            <span class="legend-item"><span class="legend-dot legend-dot-neighbor"></span> <span data-i18n="neighborLegend">دستگاه همسایه</span></span>
+                            <span class="legend-item"><span class="legend-dot legend-dot-link"></span> <span data-i18n="linkLegend">لینک ارتباطی</span></span>
+                            <span style="font-size:0.75rem;" data-i18n="legendDragHint">(جابه‌جایی گره‌ها، زوم با اسکرول، دابل‌کلیک برای مشاهده جزئیات)</span>
                         </div>
                     </div>
 
-                    <!-- Switch Inventory Table -->
+                    <!-- Switch Inventory Table Tab -->
                     <div id="tab-switches" class="tab-pane">
-                        <div class="table-container">
+                        <div class="table-wrapper">
                             <table id="switches-table">
                                 <thead>
                                     <tr>
-                                        <th>IP Address</th>
-                                        <th>Hostname</th>
-                                        <th>Model</th>
-                                        <th>Serial Number</th>
-                                        <th>IOS Version</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
+                                        <th data-i18n="ipAddress">آدرس IP</th>
+                                        <th data-i18n="hostname">نام دستگاه</th>
+                                        <th data-i18n="model">مدل</th>
+                                        <th data-i18n="serialNumber">شماره سریال</th>
+                                        <th data-i18n="iosVersion">نسخه IOS</th>
+                                        <th data-i18n="status">وضعیت</th>
+                                        <th data-i18n="actions">عملیات</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td colspan="7" class="text-center">No switches found in database. Complete setup or run scan.</td></tr>
+                                    <tr><td colspan="7" style="text-align:center; padding: 24px;" data-i18n="noSwitchesRecorded">هیچ سوئیچی در دیتابیس ثبت نشده است.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                 </div>
+            <!-- Floating Code Window Card (Real-Time Terminal Console Drawer) -->
+            <section class="code-window-card floating-console" id="floating-console-drawer">
+                <div class="code-window-header">
+                    <div class="code-window-title">
+                        <div class="window-dots" onclick="toggleConsoleDrawer()" style="cursor:pointer;" title="Close Console">
+                            <span class="window-dot dot-red"></span>
+                            <span class="window-dot dot-yellow"></span>
+                            <span class="window-dot dot-green"></span>
+                        </div>
+                        <span data-i18n="realTimeConsole">💻 کنسول اجرای زنده</span>
+                    </div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <button class="btn-text-clear" onclick="clearConsole()"><span style="margin-inline-end:4px;">🧹</span><span data-i18n="clearConsole">پاکسازی کنسول</span></button>
+                        <button class="btn-console-close" onclick="toggleConsoleDrawer()" title="Close Console">&times;</button>
+                    </div>
+                </div>
+                <div class="terminal-body">
+                    <pre id="terminal-output" data-i18n="consoleReady">آماده به کار. جهت شروع، یکی از عملیات را انتخاب نمایید...</pre>
+                </div>
             </section>
 
-            <!-- Live Terminal Output Console -->
-            <section class="card log-card">
-                <div class="card-header card-header-flex">
-                    <h3>💻 Real-Time Execution Console</h3>
-                    <button class="btn-clear" onclick="clearConsole()">Clear Console</button>
-                </div>
-                <div class="terminal-container">
-                    <pre id="terminal-output">Ready. Select an action to begin...</pre>
-                </div>
-            </section>
+            <!-- Floating Trigger Button -->
+            <button id="floating-console-trigger" class="btn-floating-console" onclick="toggleConsoleDrawer()" title="Live Console">
+                <span class="indicator-dot"></span>
+                <span data-i18n="toggleConsole">کنسول اجرای زنده</span>
+            </button>
 
         </div>
-    </div>
+    </main>
 
     <!-- First-Time Setup Wizard Modal -->
     <div id="wizard-modal" class="modal-overlay {% if not is_configured %}active{% endif %}" onclick="if(event.target===this) closeWizardModal()">
         <div class="modal-card">
-            <div class="modal-header">
-                <div class="modal-title-row">
-                    <h2>⚙️ Network Settings</h2>
-                    <button type="button" class="modal-close-btn" onclick="closeWizardModal()" title="Close">&times;</button>
-                </div>
-                <p>Welcome to CiscoToolsV2! Configure your network settings to initialize discovery.</p>
+            <div class="modal-header-row">
+                <h2 data-i18n="settingsWizardTitle">⚙️ پیکربندی شبکه</h2>
+                <button type="button" class="modal-close-btn" onclick="closeWizardModal()" title="Close">&times;</button>
             </div>
+            <p class="modal-subtitle" data-i18n="settingsWizardDesc">مشخصات شبکه خود را برای شروع کشف سوئیچ‌ها وارد نمایید.</p>
+            
             <form id="wizard-form" onsubmit="saveSetup(event)">
                 <div class="form-group">
-                    <label for="wiz-subnet">Target Subnet (CIDR) <span class="required">*Required</span></label>
+                    <label for="wiz-subnet"><span data-i18n="targetSubnetLabel">محدوده شبکه (CIDR)</span> <span class="required-mark" data-i18n="subnetRequired">*الزامی</span></label>
                     <input type="text" id="wiz-subnet" placeholder="e.g. 192.168.30.0/24" value="{{ settings.subnet or '' }}" required>
-                    <small>Specify the Class C or B subnet range for discovery.</small>
+                    <span class="form-hint" data-i18n="subnetHint">رنج شبکه کلاس C یا B را وارد کنید (مانند 192.168.30.0/24).</span>
                 </div>
                 <div class="form-group">
-                    <label for="wiz-seed">Seed Switch IP(s) (Optional)</label>
+                    <label for="wiz-seed" data-i18n="seedSwitchLabel">IP سوئیچ اصلی / Seed (اختیاری)</label>
                     <input type="text" id="wiz-seed" placeholder="e.g. 192.168.30.10, 192.168.30.11" value="{{ settings.seed_ips or '' }}">
-                    <small>Core switch IP for fast CDP crawling.</small>
+                    <span class="form-hint" data-i18n="seedSwitchHint">آدرس IP سوئیچ هسته جهت ردیابی سریع‌تر CDP.</span>
                 </div>
                 <div class="form-group">
-                    <label for="wiz-user">Cisco Login Username</label>
-                    <input type="text" id="wiz-user" placeholder="Leave blank if not required" value="{{ settings.username or '' }}">
+                    <label for="wiz-user" data-i18n="ciscoUserLabel">نام کاربری ورود به سوئیچ</label>
+                    <input type="text" id="wiz-user" placeholder="نام کاربری (اختیاری)" value="{{ settings.username or '' }}">
+                    <span class="form-hint" data-i18n="ciscoUserHint">در صورت عدم نیاز خالی بگذارید</span>
                 </div>
                 <div class="form-group">
-                    <label for="wiz-pass">Cisco Login Password</label>
-                    <input type="password" id="wiz-pass" placeholder="Enter switch enable password" value="{{ settings.password or '' }}">
+                    <label for="wiz-pass" data-i18n="ciscoPassLabel">رمز عبور ورود به سوئیچ</label>
+                    <input type="password" id="wiz-pass" placeholder="رمز عبور enable یا login" value="{{ settings.password or '' }}">
+                    <span class="form-hint" data-i18n="ciscoPassHint">رمز عبور enable یا Telnet/SSH سوئیچ را وارد نمایید</span>
                 </div>
                 <div class="form-group">
-                    <label for="wiz-type">Protocol</label>
+                    <label for="wiz-type" data-i18n="protocolLabel">پروتکل اتصال</label>
                     <select id="wiz-type">
                         <option value="cisco_ios_telnet" {% if settings.device_type == 'cisco_ios_telnet' %}selected{% endif %}>Telnet (cisco_ios_telnet)</option>
                         <option value="cisco_ios_ssh" {% if settings.device_type == 'cisco_ios_ssh' %}selected{% endif %}>SSH (cisco_ios_ssh)</option>
                     </select>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-green btn-full">
-                        🚀 Save Settings & Launch Setup Scan
+                <div style="margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary btn-full" data-i18n="saveSettingsBtn">
+                        🚀 ذخیره تنظیمات و شروع اسکن
                     </button>
                 </div>
             </form>
@@ -173,20 +262,24 @@
     <!-- Switch Details Modal -->
     <div id="switch-details-modal" class="modal-overlay" onclick="if(event.target===this) closeSwitchDetailsModal()">
         <div class="modal-card modal-card-wide">
-            <div class="modal-header">
-                <div class="modal-title-row">
-                    <h2 id="sw-modal-title">🖥️ Switch Details</h2>
-                    <button type="button" class="modal-close-btn" onclick="closeSwitchDetailsModal()" title="Close">&times;</button>
-                </div>
-                <p id="sw-modal-subtitle">Comprehensive device information and configuration</p>
+            <div class="modal-header-row">
+                <h2 id="sw-modal-title" data-i18n="switchDetailsTitle">🖥️ مشخصات دستگاه</h2>
+                <button type="button" class="modal-close-btn" onclick="closeSwitchDetailsModal()" title="Close">&times;</button>
             </div>
+            <p class="modal-subtitle" id="sw-modal-subtitle" data-i18n="switchDetailsSub">اطلاعات کامل پیکربندی سخت‌افزار و پورت‌ها</p>
+            
             <div class="modal-body" id="sw-modal-body">
-                <div class="text-center text-muted" style="padding: 30px;">Loading switch details...</div>
+                <div style="text-align: center; padding: 40px; color: var(--text-subtle);" data-i18n="loadingDetails">در حال دریافت اطلاعات...</div>
             </div>
         </div>
     </div>
 
+    <footer class="app-footer">
+        <p>CiscoToolsV2 Network Control Center &bull; Designed with Warm Editorial Aesthetics</p>
+    </footer>
+
     <!-- App JavaScript -->
+    <script src="/static/js/translations.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

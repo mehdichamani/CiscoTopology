@@ -1,25 +1,196 @@
 /* ==========================================================================
-   CiscoToolsV2 - Frontend Application & Vis.js Interactive Topology
+   CiscoToolsV2 - Frontend Application Logic & Topology Engine
    ========================================================================== */
 
 let visNetwork = null;
 let eventSource = null;
 
+let currentLang = 'fa';
+let currentTheme = 'dark';
+
 document.addEventListener('DOMContentLoaded', () => {
+    initThemeAndLanguage();
     initTopology();
     loadSwitches();
+    loadTaskSchedules();
 });
+
+// --- i18n & Theme Engine ---
+function t(key) {
+    if (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) {
+        return TRANSLATIONS[currentLang][key];
+    }
+    return key;
+}
+
+function initThemeAndLanguage() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        currentTheme = savedTheme;
+    } else {
+        currentTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    applyTheme(currentTheme);
+
+    const savedLang = localStorage.getItem('lang');
+    if (savedLang) {
+        currentLang = savedLang;
+    } else {
+        const browserLang = (navigator.language || '').toLowerCase();
+        currentLang = browserLang.startsWith('fa') ? 'fa' : 'en';
+    }
+    applyLanguage(currentLang);
+}
+
+function applyTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    if (themeBtn) {
+        themeBtn.textContent = theme === 'light' ? '☀️' : '🌙';
+    }
+
+    if (visNetwork) {
+        updateTopologyTheme();
+    }
+}
+
+function toggleTheme() {
+    const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('theme', nextTheme);
+    applyTheme(nextTheme);
+}
+
+function applyLanguage(lang) {
+    currentLang = lang;
+    document.documentElement.setAttribute('lang', lang);
+    document.documentElement.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
+    const langBtn = document.getElementById('lang-toggle-btn');
+    if (langBtn) {
+        langBtn.textContent = lang === 'fa' ? '🌐 EN' : '🌐 FA';
+    }
+    updateUITranslations();
+}
+
+function toggleLanguage() {
+    const nextLang = currentLang === 'fa' ? 'en' : 'fa';
+    localStorage.setItem('lang', nextLang);
+    applyLanguage(nextLang);
+}
+
+function updateUITranslations() {
+    // Text content i18n
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (key && t(key)) {
+            el.textContent = t(key);
+        }
+    });
+
+    // Attribute titles i18n
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (key && t(key)) {
+            el.setAttribute('title', t(key));
+        }
+    });
+
+    // Re-render switch inventory table headers if present
+    const headers = document.querySelectorAll('#switches-table th');
+    if (headers.length >= 7) {
+        headers[0].textContent = t('ipAddress');
+        headers[1].textContent = t('hostname');
+        headers[2].textContent = t('model');
+        headers[3].textContent = t('serialNumber');
+        headers[4].textContent = t('iosVersion');
+        headers[5].textContent = t('status');
+        headers[6].textContent = t('actions');
+    }
+}
+
+// --- Task Schedule Management ---
+function loadTaskSchedules() {
+    fetch('/api/tasks')
+        .then(res => res.json())
+        .then(tasks => {
+            if (!Array.isArray(tasks)) return;
+            tasks.forEach(t => {
+                const toggle = document.getElementById(`toggle-${t.task_id}`);
+                const valEl = document.getElementById(`interval-val-${t.task_id}`);
+                if (toggle) toggle.checked = Boolean(t.enabled);
+                if (valEl) valEl.textContent = t.interval_minutes;
+            });
+        })
+        .catch(err => console.error('Failed to load task schedules:', err));
+}
+
+function toggleTask(taskId, enabled) {
+    fetch(`/api/tasks/${taskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabled ? 1 : 0 })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log(`Task ${taskId} toggle set to ${enabled}`);
+    })
+    .catch(err => alert('Failed to update task status: ' + err));
+}
+
+function editTaskInterval(taskId) {
+    const valEl = document.getElementById(`interval-val-${taskId}`);
+    if (!valEl) return;
+
+    const currentVal = valEl.textContent.trim();
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1';
+    input.value = currentVal;
+    input.className = 'inline-edit-input';
+
+    valEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    function finishEdit() {
+        const newVal = parseInt(input.value) || 1;
+        const newSpan = document.createElement('span');
+        newSpan.id = `interval-val-${taskId}`;
+        newSpan.textContent = newVal;
+        input.replaceWith(newSpan);
+
+        if (newVal !== parseInt(currentVal)) {
+            fetch(`/api/tasks/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interval_minutes: newVal })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log(`Task ${taskId} interval updated to ${newVal} min`);
+            })
+            .catch(err => alert('Failed to update interval: ' + err));
+        }
+    }
+
+    input.addEventListener('blur', finishEdit, { once: true });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            input.blur();
+        }
+    });
+}
 
 // --- Tab Controller ---
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.category-tab').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
     
     const target = document.getElementById(tabId);
     if (target) target.classList.add('active');
     
-    // Highlight matching tab button
-    const btns = document.querySelectorAll('.tab-btn');
+    const btns = document.querySelectorAll('.category-tab');
     for (let b of btns) {
         if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(tabId)) {
             b.classList.add('active');
@@ -45,17 +216,53 @@ function initTopology() {
     fetch('/api/topology')
         .then(res => res.json())
         .then(data => {
-            const nodes = new vis.DataSet(data.nodes || []);
-            const edges = new vis.DataSet(data.edges || []);
+            const rawNodes = data.nodes || [];
+            const rawEdges = data.edges || [];
 
-            const graphData = { nodes: nodes, edges: edges };
+            // Apply DESIGN.md Editorial Styling to Vis.js Network Nodes & Edges
+            const styledNodes = rawNodes.map(node => {
+                const isSwitch = node.group === 'switch';
+                return {
+                    ...node,
+                    shape: isSwitch ? 'dot' : 'diamond',
+                    size: isSwitch ? 22 : 14,
+                    color: {
+                        background: isSwitch ? '#cc785c' : '#5db8a6', // Coral for Switch, Teal for Neighbor
+                        border: isSwitch ? '#a9583e' : '#479b8a',
+                        highlight: {
+                            background: '#e8a55a',
+                            border: '#cc785c'
+                        }
+                    },
+                    font: {
+                        color: currentTheme === 'dark' ? '#faf9f5' : '#141413',
+                        face: 'Inter, Vazirmatn, sans-serif',
+                        size: 13
+                    }
+                };
+            });
+
+            const styledEdges = rawEdges.map(edge => ({
+                ...edge,
+                color: {
+                    color: currentTheme === 'dark' ? '#504d46' : '#c4bebe',
+                    highlight: '#cc785c'
+                },
+                width: 2
+            }));
+
+            const graphData = {
+                nodes: new vis.DataSet(styledNodes),
+                edges: new vis.DataSet(styledEdges)
+            };
+
             const options = {
                 physics: {
                     solver: 'forceAtlas2Based',
                     forceAtlas2Based: {
-                        gravitationalConstant: -50,
+                        gravitationalConstant: -60,
                         centralGravity: 0.01,
-                        springLength: 100,
+                        springLength: 120,
                         springConstant: 0.08
                     }
                 },
@@ -78,6 +285,17 @@ function initTopology() {
         .catch(err => console.error('Failed to load topology:', err));
 }
 
+function updateTopologyTheme() {
+    if (!visNetwork) return;
+    const fontColor = currentTheme === 'dark' ? '#faf9f5' : '#141413';
+    const edgeColor = currentTheme === 'dark' ? '#504d46' : '#c4bebe';
+
+    visNetwork.setOptions({
+        nodes: { font: { color: fontColor } },
+        edges: { color: { color: edgeColor } }
+    });
+}
+
 // --- Data Table Loaders ---
 function loadSwitches() {
     const tbody = document.querySelector('#switches-table tbody');
@@ -88,13 +306,13 @@ function loadSwitches() {
         .then(data => {
             tbody.innerHTML = '';
             if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center">No switches recorded in database.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px;" data-i18n="noSwitchesRecorded">${t('noSwitchesRecorded')}</td></tr>`;
                 return;
             }
             data.forEach(s => {
                 const tr = document.createElement('tr');
                 const isOnline = (s.status || 'online').toLowerCase() === 'online';
-                const badgeClass = isOnline ? 'badge-green' : 'badge-red';
+                const badgeClass = isOnline ? 'badge-pill-success' : 'badge-pill-error';
                 const badgeIcon = isOnline ? '🟢' : '🔴';
 
                 tr.innerHTML = `
@@ -103,10 +321,10 @@ function loadSwitches() {
                     <td>${s.model || 'N/A'}</td>
                     <td><small>${s.serial_number || 'N/A'}</small></td>
                     <td><small>${s.ios_version || 'N/A'}</small></td>
-                    <td><span class="badge ${badgeClass}">${badgeIcon} ${s.status || 'online'}</span></td>
+                    <td><span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-cyan" onclick="openSwitchDetails('${s.ip}')">🔍 Details</button>
-                        <a href="/terminal/${s.ip}" target="_blank" class="btn btn-sm btn-purple" style="text-decoration:none; margin-left:4px;">📟 Terminal</a>
+                        <button class="btn btn-sm btn-secondary" onclick="openSwitchDetails('${s.ip}')">${t('details')}</button>
+                        <a href="/terminal/${s.ip}" target="_blank" class="btn btn-sm btn-primary" style="margin-inline-start:4px;">${t('terminal')}</a>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -124,15 +342,15 @@ function openSwitchDetails(switchId) {
     if (!modal || !bodyEl) return;
 
     modal.classList.add('active');
-    titleEl.textContent = `🖥️ Switch: ${switchId}`;
-    subTitleEl.textContent = 'Loading detailed device configuration...';
-    bodyEl.innerHTML = '<div class="text-center text-muted" style="padding: 40px;">⏳ Querying switch data...</div>';
+    titleEl.textContent = `${t('switchDetailsTitle')}: ${switchId}`;
+    subTitleEl.textContent = t('loadingDetails');
+    bodyEl.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-subtle);">${t('loadingDetails')}</div>`;
 
     fetch(`/api/switch/${encodeURIComponent(switchId)}`)
         .then(res => res.json())
         .then(resData => {
             if (resData.status === 'error') {
-                bodyEl.innerHTML = `<div class="text-center text-red" style="padding: 20px;">❌ ${resData.message}</div>`;
+                bodyEl.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--color-error);">❌ ${resData.message}</div>`;
                 return;
             }
 
@@ -141,60 +359,60 @@ function openSwitchDetails(switchId) {
             const links = resData.links || [];
             const devices = resData.devices || [];
             const isOnline = (sw.status || 'online').toLowerCase() === 'online';
-            const badgeClass = isOnline ? 'badge-green' : 'badge-red';
+            const badgeClass = isOnline ? 'badge-pill-success' : 'badge-pill-error';
             const badgeIcon = isOnline ? '🟢' : '🔴';
 
-            titleEl.innerHTML = `🖥️ ${sw.hostname || sw.ip} <a href="/terminal/${sw.ip}" target="_blank" class="btn btn-sm btn-purple" style="text-decoration:none; margin-left: 10px; font-weight:normal;">📟 Open Terminal</a>`;
-            subTitleEl.textContent = `IP Address: ${sw.ip} | Status: ${sw.status || 'online'}`;
+            titleEl.innerHTML = `🖥️ ${sw.hostname || sw.ip} <a href="/terminal/${sw.ip}" target="_blank" class="btn btn-sm btn-primary" style="margin-inline-start: 10px;">${t('openTerminalBtn')}</a>`;
+            subTitleEl.textContent = `${t('ipAddress')}: ${sw.ip} | ${t('status')}: ${t(isOnline ? 'online' : 'offline')}`;
 
             let vlansHtml = vlans.length > 0 
                 ? vlans.map(v => `<span class="vlan-chip" title="Ports: ${v.ports || 'None'}"><b>VLAN ${v.vlan_id}</b> (${v.vlan_name || 'N/A'}) - ${v.port_count} ports</span>`).join('') 
-                : '<span class="text-muted">No VLAN data recorded</span>';
+                : `<span style="color:var(--text-subtle);">${t('noVlanData')}</span>`;
 
             let linksHtml = links.length > 0
-                ? `<table class="mini-table"><thead><tr><th>Local Port</th><th>Remote Switch</th><th>Remote Port</th><th>Protocol</th></tr></thead><tbody>` +
-                  links.map(l => `<tr><td><code>${l.source_port}</code></td><td><strong>${l.target_switch}</strong></td><td><code>${l.target_port || '-'}</code></td><td><span class="badge badge-purple">${l.protocol}</span></td></tr>`).join('') +
+                ? `<table class="mini-table"><thead><tr><th>${t('localPort')}</th><th>${t('remoteSwitch')}</th><th>${t('remotePort')}</th><th>${t('protocol')}</th></tr></thead><tbody>` +
+                  links.map(l => `<tr><td><code>${l.source_port}</code></td><td><strong>${l.target_switch}</strong></td><td><code>${l.target_port || '-'}</code></td><td><span class="badge-pill">${l.protocol}</span></td></tr>`).join('') +
                   `</tbody></table>`
-                : '<span class="text-muted">No neighbor links recorded</span>';
+                : `<span style="color:var(--text-subtle);">${t('noLinksData')}</span>`;
 
             let devicesHtml = devices.length > 0
-                ? `<table class="mini-table"><thead><tr><th>Port</th><th>VLAN</th><th>MAC Address</th><th>IP</th><th>Vendor</th></tr></thead><tbody>` +
+                ? `<table class="mini-table"><thead><tr><th>${t('port')}</th><th>${t('vlan')}</th><th>${t('macAddress')}</th><th>${t('ipAddress')}</th><th>${t('vendor')}</th></tr></thead><tbody>` +
                   devices.map(d => `<tr><td><code>${d.port}</code></td><td>VLAN ${d.vlan}</td><td><code>${d.mac_address}</code></td><td><code>${d.ip_address || '-'}</code></td><td>${d.vendor || '-'}</td></tr>`).join('') +
                   `</tbody></table>`
-                : '<span class="text-muted">No connected edge devices recorded</span>';
+                : `<span style="color:var(--text-subtle);">${t('noDevicesData')}</span>`;
 
             bodyEl.innerHTML = `
-                <div class="sw-details-grid">
-                    <div class="sw-info-card">
-                        <div class="sw-prop"><span>IP Address:</span> <code>${sw.ip}</code></div>
-                        <div class="sw-prop"><span>Hostname:</span> <strong>${sw.hostname || 'N/A'}</strong></div>
-                        <div class="sw-prop"><span>Model:</span> ${sw.model || 'N/A'}</div>
+                <div class="sw-grid">
+                    <div class="sw-info-block">
+                        <div class="sw-prop"><span class="sw-prop-label">${t('ipAddress')}:</span> <code>${sw.ip}</code></div>
+                        <div class="sw-prop"><span class="sw-prop-label">${t('hostname')}:</span> <strong>${sw.hostname || 'N/A'}</strong></div>
+                        <div class="sw-prop"><span class="sw-prop-label">${t('model')}:</span> ${sw.model || 'N/A'}</div>
                     </div>
-                    <div class="sw-info-card">
-                        <div class="sw-prop"><span>Serial Number:</span> <small>${sw.serial_number || 'N/A'}</small></div>
-                        <div class="sw-prop"><span>IOS Version:</span> <small>${sw.ios_version || 'N/A'}</small></div>
-                        <div class="sw-prop"><span>Status:</span> <span class="badge ${badgeClass}">${badgeIcon} ${sw.status || 'online'}</span></div>
+                    <div class="sw-info-block">
+                        <div class="sw-prop"><span class="sw-prop-label">${t('serialNumber')}:</span> <small>${sw.serial_number || 'N/A'}</small></div>
+                        <div class="sw-prop"><span class="sw-prop-label">${t('iosVersion')}:</span> <small>${sw.ios_version || 'N/A'}</small></div>
+                        <div class="sw-prop"><span class="sw-prop-label">${t('status')}:</span> <span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></div>
                     </div>
                 </div>
 
-                <div class="sw-section">
-                    <h4>📊 Configured VLANs (${vlans.length})</h4>
-                    <div class="vlan-chips-container">${vlansHtml}</div>
+                <div class="sw-section-card">
+                    <h4>📊 ${t('configuredVlans')} (${vlans.length})</h4>
+                    <div class="vlan-chips-wrapper">${vlansHtml}</div>
                 </div>
 
-                <div class="sw-section">
-                    <h4>↔ CDP Inter-Switch Links (${links.length})</h4>
+                <div class="sw-section-card">
+                    <h4>↔ ${t('cdpLinks')} (${links.length})</h4>
                     ${linksHtml}
                 </div>
 
-                <div class="sw-section">
-                    <h4>🔌 Connected Edge Devices (${devices.length})</h4>
+                <div class="sw-section-card">
+                    <h4>🔌 ${t('connectedDevices')} (${devices.length})</h4>
                     ${devicesHtml}
                 </div>
             `;
         })
         .catch(err => {
-            bodyEl.innerHTML = `<div class="text-center text-red" style="padding: 20px;">❌ Failed to load switch details: ${err}</div>`;
+            bodyEl.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--color-error);">❌ ${err}</div>`;
         });
 }
 
@@ -203,14 +421,30 @@ function closeSwitchDetailsModal() {
     if (modal) modal.classList.remove('active');
 }
 
-// --- Action Execution with Real-Time Terminal Streaming ---
+// --- Floating Console Drawer Toggle ---
+function toggleConsoleDrawer(forceOpen) {
+    const drawer = document.getElementById('floating-console-drawer');
+    if (!drawer) return;
+    if (typeof forceOpen === 'boolean') {
+        if (forceOpen) drawer.classList.add('active');
+        else drawer.classList.remove('active');
+    } else {
+        drawer.classList.toggle('active');
+    }
+}
+
+// --- Action Execution with Real-Time SSE Streaming ---
 function runAction(actionName) {
     const terminal = document.getElementById('terminal-output');
     const status = document.getElementById('action-status');
+    const trigger = document.getElementById('floating-console-trigger');
+
+    toggleConsoleDrawer(true);
+    if (trigger) trigger.classList.add('is-running');
 
     terminal.textContent = `>>> Executing ${actionName}...\n`;
-    status.textContent = 'Running...';
-    status.className = 'status-running';
+    status.textContent = t('runningStatus');
+    status.className = 'status-badge status-running';
 
     if (eventSource) {
         eventSource.close();
@@ -225,8 +459,9 @@ function runAction(actionName) {
         if (line === '[FINISHED]') {
             eventSource.close();
             eventSource = null;
-            status.textContent = 'Completed';
-            status.className = 'status-idle';
+            status.textContent = t('completedStatus');
+            status.className = 'status-badge status-completed';
+            if (trigger) trigger.classList.remove('is-running');
             reloadCurrentTab();
             return;
         }
@@ -237,14 +472,18 @@ function runAction(actionName) {
 
     eventSource.onerror = (err) => {
         console.error('SSE Error:', err);
-        status.textContent = 'Error';
-        eventSource.close();
-        eventSource = null;
+        status.textContent = t('errorStatus');
+        status.className = 'status-badge status-error';
+        if (trigger) trigger.classList.remove('is-running');
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
     };
 }
 
 function clearConsole() {
-    document.getElementById('terminal-output').textContent = 'Console cleared.';
+    document.getElementById('terminal-output').textContent = t('consoleCleared');
 }
 
 // --- Fullscreen Topology Toggle ---

@@ -5,70 +5,113 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cisco Terminal - {{ switch_ip }}</title>
 
+    <!-- Google Fonts: JetBrains Mono & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
     <!-- Xterm.js CSS & JS CDN -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 
     <style>
+        :root {
+            --bg-body: #141312;
+            --header-bg: #181715;
+            --terminal-bg: #1f1e1b;
+            --border-color: #252320;
+            --text-primary: #faf9f5;
+            --accent-coral: #cc785c;
+            --accent-teal: #5db8a6;
+        }
+
+        [data-theme="light"] {
+            --bg-body: #faf9f5;
+            --header-bg: #efe9de;
+            --terminal-bg: #181715;
+            --border-color: #e6dfd8;
+            --text-primary: #141413;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
+
         body {
-            background-color: #0b0f19;
-            color: #f8fafc;
-            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            transition: background-color 0.25s ease, color 0.25s ease;
         }
+
         .header {
-            background: #0f172a;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 10px 20px;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+
         .header-title {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             font-size: 14px;
-            font-weight: bold;
+            font-weight: 500;
         }
+
+        .header-title code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(204, 120, 92, 0.15);
+            color: var(--accent-coral);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
         .status-badge {
-            padding: 4px 10px;
-            border-radius: 12px;
+            padding: 3px 10px;
+            border-radius: 9999px;
             font-size: 11px;
-            font-weight: bold;
+            font-weight: 500;
         }
-        .status-connecting { background: rgba(234, 179, 8, 0.2); color: #fde047; }
-        .status-connected { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
-        .status-disconnected { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        .status-connecting { background: rgba(232, 165, 90, 0.2); color: #e8a55a; border: 1px solid #e8a55a; }
+        .status-connected { background: rgba(93, 184, 114, 0.2); color: #5db872; border: 1px solid #5db872; }
+        .status-disconnected { background: rgba(198, 69, 69, 0.2); color: #c64545; border: 1px solid #c64545; }
         
         .controls {
             display: flex;
             gap: 8px;
         }
+
         .btn {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff;
-            padding: 4px 10px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 14px;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.15s ease;
         }
-        .btn:hover { background: rgba(255, 255, 255, 0.2); }
+        .btn:hover {
+            border-color: var(--accent-coral);
+            color: var(--accent-coral);
+        }
 
         #terminal-container {
             flex: 1;
-            padding: 10px;
-            background: #030712;
+            padding: 12px;
+            background: var(--terminal-bg);
         }
     </style>
 </head>
@@ -76,13 +119,14 @@
 
     <div class="header">
         <div class="header-title">
-            <span>📟 Telnet Terminal:</span>
+            <span>📟 Cisco Terminal Session:</span>
             <code id="target-ip">{{ switch_ip }}</code>
             <span id="conn-status" class="status-badge status-connecting">Connecting...</span>
         </div>
         <div class="controls">
-            <button class="btn" onclick="connectWebSocket()">🔄 Reconnect</button>
-            <button class="btn" onclick="clearTerminal()">🧹 Clear</button>
+            <button class="btn" onclick="toggleTerminalTheme()" id="theme-btn">🌙 Theme</button>
+            <button class="btn" onclick="connectWebSocket()" id="reconn-btn">🔄 Reconnect</button>
+            <button class="btn" onclick="clearTerminal()" id="clear-btn">🧹 Clear</button>
         </div>
     </div>
 
@@ -91,22 +135,46 @@
     <script>
         const switchIp = "{{ switch_ip }}";
         let term, fitAddon, ws;
+        let currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
         document.addEventListener('DOMContentLoaded', () => {
+            applyTerminalTheme(currentTheme);
             initTerminal();
             connectWebSocket();
         });
 
+        function applyTerminalTheme(theme) {
+            currentTheme = theme;
+            document.body.setAttribute('data-theme', theme);
+            const themeBtn = document.getElementById('theme-btn');
+            if (themeBtn) themeBtn.textContent = theme === 'light' ? '☀️ Light' : '🌙 Dark';
+
+            if (term) {
+                term.options.theme = {
+                    background: theme === 'light' ? '#faf9f5' : '#181715',
+                    foreground: theme === 'light' ? '#141413' : '#faf9f5',
+                    cursor: '#cc785c',
+                    selectionBackground: 'rgba(204, 120, 92, 0.3)'
+                };
+            }
+        }
+
+        function toggleTerminalTheme() {
+            const next = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('theme', next);
+            applyTerminalTheme(next);
+        }
+
         function initTerminal() {
             term = new Terminal({
                 cursorBlink: true,
-                fontFamily: 'Consolas, "Courier New", monospace',
+                fontFamily: '"JetBrains Mono", Consolas, "Courier New", monospace',
                 fontSize: 14,
                 theme: {
-                    background: '#030712',
-                    foreground: '#f8fafc',
-                    cursor: '#38bdf8',
-                    selectionBackground: '#334155'
+                    background: currentTheme === 'light' ? '#faf9f5' : '#181715',
+                    foreground: currentTheme === 'light' ? '#141413' : '#faf9f5',
+                    cursor: '#cc785c',
+                    selectionBackground: 'rgba(204, 120, 92, 0.3)'
                 }
             });
 

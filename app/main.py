@@ -11,9 +11,9 @@ from app.config import STATIC_DIR, TEMPLATES_DIR
 from app.db import (
     init_db, is_configured, get_settings, save_settings,
     get_switches, get_vlans, get_connected_devices, get_vis_topology,
-    get_switch_details
+    get_switch_details, get_task_schedules, get_task_schedule, save_task_schedule
 )
-from app.scheduler import start_scheduler, stop_scheduler
+from app.scheduler import start_scheduler, stop_scheduler, reload_task_jobs
 from app.scanner import scan_subnet, crawl_cdp, check_all_switches_status
 from app.collector import run_full_collection
 from app.terminal import TelnetSession
@@ -94,6 +94,26 @@ async def update_config(data: dict):
 @app.get("/api/switches")
 async def fetch_switches():
     return JSONResponse(get_switches())
+
+@app.get("/api/tasks")
+async def fetch_tasks():
+    return JSONResponse(get_task_schedules())
+
+@app.post("/api/tasks/{task_id}")
+async def update_task(task_id: str, data: dict):
+    enabled = data.get("enabled")
+    interval = data.get("interval_minutes")
+    
+    if enabled is not None:
+        enabled = int(enabled)
+    if interval is not None:
+        interval = int(interval)
+
+    save_task_schedule(task_id, enabled=enabled, interval_minutes=interval)
+    reload_task_jobs()
+    
+    updated_task = get_task_schedule(task_id)
+    return JSONResponse({"status": "success", "task": updated_task})
 
 @app.get("/api/switch/{switch_id:path}")
 async def fetch_switch_details(switch_id: str):

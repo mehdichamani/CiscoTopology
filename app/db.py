@@ -85,12 +85,68 @@ def init_db():
         ip_address TEXT,
         vendor TEXT,
         device_type TEXT DEFAULT 'Other',
-        name TEXT,
         user TEXT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
+    # 6. Scheduled Tasks Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS task_schedules (
+        task_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        action_name TEXT NOT NULL,
+        enabled INTEGER DEFAULT 1,
+        interval_minutes INTEGER DEFAULT 60,
+        last_run DATETIME,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # Seed default tasks if empty
+    cursor.execute("SELECT COUNT(*) FROM task_schedules")
+    if cursor.fetchone()[0] == 0:
+        default_tasks = [
+            ("task_discovery", "کشف دستگاه‌های جدید", "full_sequence", 1, 60),
+            ("task_collector", "بروزرسانی اطلاعات سوئیچ‌ها", "full_sequence", 1, 1440),
+            ("task_status", "بررسی آنلاین بودن سوئیچ‌ها", "check_status", 1, 1),
+        ]
+        cursor.executemany("""
+        INSERT INTO task_schedules (task_id, title, action_name, enabled, interval_minutes)
+        VALUES (?, ?, ?, ?, ?)
+        """, default_tasks)
+
+    conn.commit()
+    conn.close()
+
+def get_task_schedules():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT task_id, title, action_name, enabled, interval_minutes, last_run, updated_at FROM task_schedules ORDER BY task_id")
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def get_task_schedule(task_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT task_id, title, action_name, enabled, interval_minutes, last_run, updated_at FROM task_schedules WHERE task_id = ?", (task_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def save_task_schedule(task_id, enabled=None, interval_minutes=None, update_last_run=False):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if update_last_run:
+        cursor.execute("UPDATE task_schedules SET last_run = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE task_id = ?", (task_id,))
+    else:
+        if enabled is not None and interval_minutes is not None:
+            cursor.execute("UPDATE task_schedules SET enabled = ?, interval_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE task_id = ?", (enabled, interval_minutes, task_id))
+        elif enabled is not None:
+            cursor.execute("UPDATE task_schedules SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE task_id = ?", (enabled, task_id))
+        elif interval_minutes is not None:
+            cursor.execute("UPDATE task_schedules SET interval_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE task_id = ?", (interval_minutes, task_id))
     conn.commit()
     conn.close()
 
@@ -163,6 +219,13 @@ def upsert_link(source_switch, source_port, target_switch, target_port="", proto
         vlan=excluded.vlan,
         updated_at=CURRENT_TIMESTAMP;
     """, (source_switch, source_port, target_switch, target_port, protocol, speed, vlan))
+    conn.commit()
+    conn.close()
+
+def clear_links_for_switch(source_switch):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM links WHERE source_switch = ?", (source_switch,))
     conn.commit()
     conn.close()
 

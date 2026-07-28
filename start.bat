@@ -8,7 +8,7 @@ pause
 exit /b 1
 
 :RUN
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8800 --reload
 if errorlevel 1 (
     echo [ERROR] Failed to start CiscoToolsV2.
     pause

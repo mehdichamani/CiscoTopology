@@ -4,7 +4,8 @@ import ipaddress
 import re
 import collections
 import subprocess
-from app.db import get_settings, get_switches, upsert_switch, upsert_link, update_switch_status
+from netmiko import ConnectHandler
+from app.db import get_settings, get_switches, upsert_switch, upsert_link, clear_links_for_switch, update_switch_status
 
 def log(msg, callback=None):
     if callback:
@@ -209,6 +210,7 @@ def crawl_cdp(log_callback=None):
 
                 log(f"  🔍 Discovered {len(neighbors)} CDP neighbor link(s)", log_callback)
 
+                clear_links_for_switch(hostname)
                 for n in neighbors:
                     upsert_link(
                         source_switch=hostname,
