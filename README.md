@@ -1,0 +1,65 @@
+# CiscoToolsV2
+
+A web dashboard for discovering, mapping, and managing Cisco switches on a local network. Built with FastAPI + Netmiko, with a live terminal, topology view, and scheduled collection.
+
+## Features
+
+- **Subnet scanning** — probes IPs for Telnet/SSH reachable switches
+- **CDP crawl** — walks CDP neighbors to build inter-switch links
+- **Data collection** — pulls model, serial, IOS version, VLANs, connected devices
+- **Topology view** — visual map of switches and links
+- **Web terminal** — Telnet into any switch from the browser (WebSocket)
+- **Scheduled tasks** — auto-refresh scans/collection on an interval (APScheduler)
+- **Status checks** — online/offline monitoring of known switches
+
+## Requirements
+
+- Python 3.9+
+- Windows (uses `start.bat` / `install.ps1`)
+
+## Setup
+
+```powershell
+.\install.ps1
+```
+
+Creates a `.venv` and installs dependencies from `requirements.txt`.
+
+## Run
+
+```bat
+.\start.bat
+```
+
+Starts Uvicorn at `http://127.0.0.1:8800`.
+
+Open the dashboard, enter your subnet CIDR and Cisco credentials, then run a scan or the full sequence (Scan → CDP Crawl → Collect).
+
+## Tech Stack
+
+- **FastAPI** + Uvicorn — backend & API
+- **Netmiko** — switch connectivity (Telnet/SSH)
+- **APScheduler** — scheduled tasks
+- **Jinja2** — templates
+- **SQLite** — local data store (`data/network.db`)
+
+## Project Structure
+
+```
+app/
+  main.py        # FastAPI app, routes, WebSocket terminal
+  config.py      # paths
+  db.py          # SQLite schema & queries
+  scanner.py     # subnet scan, CDP crawl, status checks
+  collector.py   # show commands parsing (version, VLANs, devices)
+  scheduler.py   # APScheduler task jobs
+  terminal.py    # Telnet WebSocket bridge
+  static/        # CSS, JS, translations
+  templates/     # index.html, terminal.html
+data/            # SQLite DB (gitignored)
+```
+
+## Notes
+
+- Credentials are stored locally in `data/network.db`. The dashboard binds to `127.0.0.1` only — do not expose it on a public network.
+- Telnet transmits credentials in cleartext; prefer SSH-capable devices where possible.
