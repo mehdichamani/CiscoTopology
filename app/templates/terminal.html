@@ -5,15 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cisco Terminal - {{ switch_ip }}</title>
 
-    <!-- Google Fonts: JetBrains Mono & Inter -->
+    <!-- Google Fonts (Non-blocking with robust monospace fallbacks) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    </noscript>
 
-    <!-- Xterm.js CSS & JS CDN -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <!-- Xterm.js CSS & JS (Local Vendor Bundle - Offline & Fast) -->
+    <link rel="stylesheet" href="/static/vendor/xterm/xterm.css" />
+    <script src="/static/vendor/xterm/xterm.js"></script>
+    <script src="/static/vendor/xterm/xterm-addon-fit.js"></script>
 
     <style>
         :root {

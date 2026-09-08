@@ -1,5 +1,8 @@
 # CiscoToolsV2
 
+> [!NOTE]
+> **اطلاعیه تغییر نام و یکپارچه‌سازی:** این پروژه به زودی با نام رسمی **سیم‌بان (Simban)** و با ساختار پوشه `simban` در قالب اکوسیستم **بوم‌بان (Boomban)** به عنوان ماژول تخصصی پایش، ترسیم توپولوژی و مدیریت سوییچ‌های سیسکو به فعالیت خود ادامه خواهد داد.
+
 A web dashboard for discovering, mapping, and managing Cisco switches on a local network. Built with FastAPI + Netmiko, with a live terminal, topology view, and scheduled collection.
 
 ## Features
@@ -15,23 +18,25 @@ A web dashboard for discovering, mapping, and managing Cisco switches on a local
 ## Requirements
 
 - Python 3.9+
-- Windows (uses `start.bat` / `install.ps1`)
+## Setup & Run (راه‌اندازی و اجرا)
 
-## Setup
-
+### Windows (PowerShell):
 ```powershell
-.\install.ps1
+# منوی تعاملی و مدیریت کامل
+.\start.ps1
+
+# یا اجرای مستقیم در پس‌زمینه
+.\start.ps1 -Action start-bg -Port 29999
 ```
 
-Creates a `.venv` and installs dependencies from `requirements.txt`.
-
-## Run
-
-```bat
-.\start.bat
+### Linux & macOS (Bash):
+```bash
+chmod +x start.sh
+./start.sh
 ```
 
-Starts Uvicorn at `http://127.0.0.1:8800`.
+داشبورد به طور پیش‌فرض بر روی آدرس زیر در دسترس خواهد بود:
+`http://localhost:29999` (یا `http://127.0.0.1:29999`)
 
 Open the dashboard, enter your subnet CIDR and Cisco credentials, then run a scan or the full sequence (Scan → CDP Crawl → Collect).
 

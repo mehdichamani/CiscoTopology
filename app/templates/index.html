@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CiscoToolsV2 - Network Intelligence & Switch Control</title>
 
-    <!-- Google Fonts: Cormorant Garamond (Editorial Serif), Inter, Vazirmatn & JetBrains Mono -->
+    <!-- Google Fonts (Non-blocking with robust system font fallbacks) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    </noscript>
     
-    <!-- Vis.js Topology CDN -->
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- Vis.js Topology (Local Vendor Bundle - Offline & Fast) -->
+    <script type="text/javascript" src="/static/vendor/vis-network/vis-network.min.js"></script>
 
     <!-- App Design Styling -->
     <link rel="stylesheet" href="/static/css/style.css">

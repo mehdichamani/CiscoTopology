@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[project]
+name = "simban"
+version = "1.0.0"
+description = "Simban - Cisco Switch Discovery, Topology Mapping & Port Management"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "jinja2>=3.1.3",
+    "netmiko>=4.3.0",
+    "apscheduler>=3.10.4",
+    "python-dotenv>=1.0.1",
+]
+
+[tool.ruff]
+target-version = "py310"
+exclude = [
+    ".git",
+    ".pytest_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]

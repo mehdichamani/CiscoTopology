@@ -1,14 +1,14 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    CiscoTopology Native Manager (PowerShell TUI - Clean and Dual Language)
+    Simban Native Manager (PowerShell TUI - Clean and Dual Language)
 .DESCRIPTION
-    Interactive TUI launcher and environment manager for CiscoTopology using Astral uv or python venv.
+    Interactive TUI launcher and environment manager for Simban (Cisco Switch Management) using Astral uv.
     Supports Persian and English dual-language output with clean layout alignment.
 .EXAMPLE
     .\start.ps1
 .EXAMPLE
-    .\start.ps1 -Action start -Port 8800
+    .\start.ps1 -Action start -Port 29999
 #>
 
 [CmdletBinding()]
@@ -18,7 +18,7 @@ param(
     [string]$Action = "",
 
     [Parameter(Position=1)]
-    [int]$Port = 8800,
+    [int]$Port = 29999,
 
     [switch]$NoBrowser,
     [switch]$Reload
@@ -31,10 +31,22 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
+# بارگذاری متغیر PORT از .env در صورت عدم تغییر دستی
+if ($PSBoundParameters.ContainsKey('Port') -eq $false -and (Test-Path ".env")) {
+    $envLines = Get-Content ".env" -ErrorAction SilentlyContinue
+    foreach ($line in $envLines) {
+        if ($line -match '^\s*PORT\s*=\s*(\d+)') {
+            $Port = [int]$matches[1]
+            break
+        }
+    }
+}
+
 # مسیرهای ذخیره PID و استارت‌آپ ویندوز
-$WebPidFile = Join-Path $ScriptDir "data\ciscotopology_web.pid"
+$WebPidFile = Join-Path $ScriptDir "data\simban_web.pid"
+$LegacyWebPidFile = Join-Path $ScriptDir "data\ciscotopology_web.pid"
 $StartupFolder = [Environment]::GetFolderPath("Startup")
-$StartupShortcut = Join-Path $StartupFolder "CiscoTopology.lnk"
+$StartupShortcut = Join-Path $StartupFolder "Simban.lnk"
 
 # توابع چاپ دو زبانه و شکیل با همترازی تمیز
 function Write-LogInfo ($label, $en, $fa) {
@@ -158,8 +170,14 @@ function Get-ActiveServerProcess {
             $webProc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
         }
     }
+    if (-not $webProc -and (Test-Path $LegacyWebPidFile)) {
+        $savedPid = Get-Content $LegacyWebPidFile -ErrorAction SilentlyContinue
+        if ($savedPid) {
+            $webProc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+        }
+    }
 
-    # اگر در فایل نبود، بررسی بر اساس نام و پورت
+    # اگر در فایل نبود، بررسی بر اساس نام و خط فرمان
     if (-not $webProc) {
         $pyProcs = Get-Process -Name "python" -ErrorAction SilentlyContinue
         if ($pyProcs) {
@@ -200,7 +218,7 @@ function Get-ServerStatus {
 
 function Test-HealthCheck {
     Write-Host "`n══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-    Write-Host "  System Health Check | پایش سلامت سیستم CiscoTopology" -ForegroundColor Cyan
+    Write-Host "  System Health Check | پایش سلامت سیستم سیم‌بان (Simban)" -ForegroundColor Cyan
     Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
     
     # Python
@@ -274,7 +292,7 @@ function Start-Server {
     Ensure-EnvFiles
 
     Write-Host "`n══════════════════════════════════════════════════════════════════════" -ForegroundColor Green
-    Write-Host "  CiscoTopology Server Running (FastAPI & Topology Collector Active)" -ForegroundColor Green
+    Write-Host "  Simban Server Running (FastAPI & Cisco Collector Active)" -ForegroundColor Green
     Write-Host "  Panel URL: http://localhost:$Port" -ForegroundColor Cyan
     Write-Host "  Press Ctrl+C to Stop Server" -ForegroundColor Yellow
     Write-Host "══════════════════════════════════════════════════════════════════════`n" -ForegroundColor Green
@@ -306,7 +324,7 @@ function Start-ServerBackground {
     }
 
     $pythonPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
-    Write-LogInfo "Server" "Launching CiscoTopology background service..." "در حال راه‌اندازی پس‌زمینه سرویس وب..."
+    Write-LogInfo "Server" "Launching Simban background service..." "در حال راه‌اندازی پس‌زمینه سرویس وب..."
     
     $argList = "-m uvicorn app.main:app --host 0.0.0.0 --port $Port"
     $webProc = Start-Process -FilePath $pythonPath -ArgumentList $argList -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru
@@ -325,7 +343,7 @@ function Start-ServerBackground {
 
 # توقف سرویس پس‌زمینه
 function Stop-Server {
-    Write-LogInfo "Server" "Stopping CiscoTopology background services..." "در حال توقف سرویس پس‌زمینه..."
+    Write-LogInfo "Server" "Stopping Simban background services..." "در حال توقف سرویس پس‌زمینه..."
     $stopped = $false
 
     if (Test-Path $WebPidFile) {
@@ -341,6 +359,18 @@ function Stop-Server {
         Remove-Item $WebPidFile -Force -ErrorAction SilentlyContinue
     }
 
+    if (Test-Path $LegacyWebPidFile) {
+        $savedPid = Get-Content $LegacyWebPidFile -ErrorAction SilentlyContinue
+        if ($savedPid) {
+            $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+            if ($proc) {
+                Stop-Process -Id $savedPid -Force -ErrorAction SilentlyContinue
+                $stopped = $true
+            }
+        }
+        Remove-Item $LegacyWebPidFile -Force -ErrorAction SilentlyContinue
+    }
+
     # بررسی فرآیندهای مرتبط در صورت باقی‌ماندن
     $pyProcs = Get-Process -Name "python" -ErrorAction SilentlyContinue
     if ($pyProcs) {
@@ -349,7 +379,7 @@ function Stop-Server {
                 $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($p.Id)").CommandLine
                 if ($cmdLine -like "*app.main:app*") {
                     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-                    Write-LogOk "Web" "Terminated leftover CiscoTopology process (PID $($p.Id))" "پروسه وب متوقف شد"
+                    Write-LogOk "Web" "Terminated leftover Simban process (PID $($p.Id))" "پروسه وب متوقف شد"
                     $stopped = $true
                 }
             } catch {}
@@ -369,7 +399,7 @@ function Enable-Startup {
         $shortcut.TargetPath = "powershell.exe"
         $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptDir\start.ps1`" -Action start-bg -Port $Port -NoBrowser"
         $shortcut.WorkingDirectory = $ScriptDir
-        $shortcut.Description = "CiscoTopology Auto-Start Background Service"
+        $shortcut.Description = "Simban Auto-Start Background Service"
         $shortcut.Save()
 
         Write-LogOk "Startup" "Auto-Start enabled successfully." "راه‌اندازی خودکار فعال شد."
@@ -425,8 +455,8 @@ function Show-Menu {
         $startupStatus = if ($hasStartup) { " [ENABLED]" } else { " [DISABLED]" }
 
         Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host "             CiscoTopology Native Manager (TUI)" -ForegroundColor Cyan
-        Write-Host "    مدیریت و استقرار سامانه توپولوژی سیسکو | System Management" -ForegroundColor Gray
+        Write-Host "               Simban Native Manager (TUI)" -ForegroundColor Cyan
+        Write-Host "      مدیریت و استقرار سامانه سیم‌بان | System Management" -ForegroundColor Gray
         Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
         Write-Host "  [1] Start Foreground Console    | اجرای مستقیم در کنسول" -ForegroundColor White
         
@@ -513,7 +543,10 @@ switch ($Action.ToLower()) {
     "start"           { Start-Server }
     "start-bg"        { Start-ServerBackground }
     "stop"            { Stop-Server }
-    "status"          { Get-ServerStatus }
+    "status"          {
+        $isActive = Get-ServerStatus
+        if ($isActive) { exit 0 } else { exit 1 }
+    }
     "enable-startup"  { Enable-Startup }
     "disable-startup" { Disable-Startup }
     "install"         { Install-Dependencies }
@@ -522,15 +555,15 @@ switch ($Action.ToLower()) {
     "reset-data"      { Reset-Data }
     "clean"           { Reset-Data }
     "help"            {
-        Write-Host "CiscoTopology Help:"
+        Write-Host "Simban Help:"
         Write-Host "  .\start.ps1                          Interactive TUI Menu"
-        Write-Host "  .\start.ps1 -Action start -Port 8800 Start Foreground"
+        Write-Host "  .\start.ps1 -Action start -Port 29999 Start Foreground"
         Write-Host "  .\start.ps1 -Action start-bg         Start Background Service"
         Write-Host "  .\start.ps1 -Action stop             Stop Background Service"
-        Write-Host "  .\start.ps1 -Action status           Check Background Status"
+        Write-Host "  .\start.ps1 -Action status           Check Background Status (Exit Code 0=Active, 1=Inactive)"
         Write-Host "  .\start.ps1 -Action enable-startup   Enable Auto-Start"
         Write-Host "  .\start.ps1 -Action disable-startup  Disable Auto-Start"
-        Write-Host "  .\start.ps1 -Action install          Install Dependencies"
+        Write-Host "  .\start.ps1 -Action install          Install Dependencies (uv / pip)"
         Write-Host "  .\start.ps1 -Action update           Update Packages"
         Write-Host "  .\start.ps1 -Action check            System Health Check"
         Write-Host "  .\start.ps1 -Action reset-data       Reset All Data & Database"
