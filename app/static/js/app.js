@@ -1,8 +1,7 @@
 /* ==========================================================================
-   CiscoToolsV2 - Frontend Application Logic & Topology Engine
+   Simban - Frontend Application Logic & Switch Health Monitor
    ========================================================================== */
 
-let visNetwork = null;
 let eventSource = null;
 
 let currentLang = 'fa';
@@ -10,7 +9,6 @@ let currentTheme = 'dark';
 
 document.addEventListener('DOMContentLoaded', () => {
     initThemeAndLanguage();
-    initTopology();
     loadSwitches();
     loadTaskSchedules();
 });
@@ -49,10 +47,6 @@ function applyTheme(theme) {
     const themeBtn = document.getElementById('theme-toggle-btn');
     if (themeBtn) {
         themeBtn.textContent = theme === 'light' ? '☀️' : '🌙';
-    }
-
-    if (visNetwork) {
-        updateTopologyTheme();
     }
 }
 
@@ -98,14 +92,15 @@ function updateUITranslations() {
 
     // Re-render switch inventory table headers if present
     const headers = document.querySelectorAll('#switches-table th');
-    if (headers.length >= 7) {
+    if (headers.length >= 8) {
         headers[0].textContent = t('ipAddress');
         headers[1].textContent = t('hostname');
         headers[2].textContent = t('model');
-        headers[3].textContent = t('serialNumber');
-        headers[4].textContent = t('iosVersion');
-        headers[5].textContent = t('status');
-        headers[6].textContent = t('actions');
+        headers[3].textContent = t('status');
+        headers[4].textContent = t('latency');
+        headers[5].textContent = t('ports');
+        headers[6].textContent = t('lastSeen');
+        headers[7].textContent = t('actions');
     }
 }
 
@@ -182,120 +177,6 @@ function editTaskInterval(taskId) {
     });
 }
 
-// --- Tab Controller ---
-function switchTab(tabId) {
-    document.querySelectorAll('.category-tab').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-    
-    const target = document.getElementById(tabId);
-    if (target) target.classList.add('active');
-    
-    const btns = document.querySelectorAll('.category-tab');
-    for (let b of btns) {
-        if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(tabId)) {
-            b.classList.add('active');
-            break;
-        }
-    }
-    
-    if (tabId === 'tab-topology' && visNetwork) {
-        setTimeout(() => visNetwork.redraw(), 100);
-    }
-}
-
-function reloadCurrentTab() {
-    initTopology();
-    loadSwitches();
-}
-
-// --- Vis.js Interactive Topology ---
-function initTopology() {
-    const container = document.getElementById('vis-topology-container');
-    if (!container) return;
-
-    fetch('/api/topology')
-        .then(res => res.json())
-        .then(data => {
-            const rawNodes = data.nodes || [];
-            const rawEdges = data.edges || [];
-
-            // Apply DESIGN.md Editorial Styling to Vis.js Network Nodes & Edges
-            const styledNodes = rawNodes.map(node => {
-                const isSwitch = node.group === 'switch';
-                return {
-                    ...node,
-                    shape: isSwitch ? 'dot' : 'diamond',
-                    size: isSwitch ? 22 : 14,
-                    color: {
-                        background: isSwitch ? '#cc785c' : '#5db8a6', // Coral for Switch, Teal for Neighbor
-                        border: isSwitch ? '#a9583e' : '#479b8a',
-                        highlight: {
-                            background: '#e8a55a',
-                            border: '#cc785c'
-                        }
-                    },
-                    font: {
-                        color: currentTheme === 'dark' ? '#faf9f5' : '#141413',
-                        face: 'Inter, Vazirmatn, sans-serif',
-                        size: 13
-                    }
-                };
-            });
-
-            const styledEdges = rawEdges.map(edge => ({
-                ...edge,
-                color: {
-                    color: currentTheme === 'dark' ? '#504d46' : '#c4bebe',
-                    highlight: '#cc785c'
-                },
-                width: 2
-            }));
-
-            const graphData = {
-                nodes: new vis.DataSet(styledNodes),
-                edges: new vis.DataSet(styledEdges)
-            };
-
-            const options = {
-                physics: {
-                    solver: 'forceAtlas2Based',
-                    forceAtlas2Based: {
-                        gravitationalConstant: -60,
-                        centralGravity: 0.01,
-                        springLength: 120,
-                        springConstant: 0.08
-                    }
-                },
-                interaction: {
-                    hover: true,
-                    dragNodes: true,
-                    zoomView: true
-                }
-            };
-
-            visNetwork = new vis.Network(container, graphData, options);
-
-            visNetwork.on("doubleClick", function (params) {
-                if (params.nodes.length > 0) {
-                    const nodeId = params.nodes[0];
-                    openSwitchDetails(nodeId);
-                }
-            });
-        })
-        .catch(err => console.error('Failed to load topology:', err));
-}
-
-function updateTopologyTheme() {
-    if (!visNetwork) return;
-    const fontColor = currentTheme === 'dark' ? '#faf9f5' : '#141413';
-    const edgeColor = currentTheme === 'dark' ? '#504d46' : '#c4bebe';
-
-    visNetwork.setOptions({
-        nodes: { font: { color: fontColor } },
-        edges: { color: { color: edgeColor } }
-    });
-}
-
 // --- Data Table Loaders ---
 function loadSwitches() {
     const tbody = document.querySelector('#switches-table tbody');
@@ -306,7 +187,7 @@ function loadSwitches() {
         .then(data => {
             tbody.innerHTML = '';
             if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px;" data-i18n="noSwitchesRecorded">${t('noSwitchesRecorded')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px;" data-i18n="noSwitchesRecorded">${t('noSwitchesRecorded')}</td></tr>`;
                 return;
             }
             data.forEach(s => {
@@ -315,13 +196,18 @@ function loadSwitches() {
                 const badgeClass = isOnline ? 'badge-pill-success' : 'badge-pill-error';
                 const badgeIcon = isOnline ? '🟢' : '🔴';
 
+                const latencyText = isOnline && s.latency_ms > 0 ? `<code>${s.latency_ms} ms</code>` : `<span style="color:var(--text-subtle);">-</span>`;
+                const portsText = s.ports_total > 0 ? `<strong>${s.ports_up}</strong> / ${s.ports_total}` : `<span style="color:var(--text-subtle);">N/A</span>`;
+                const lastSeenText = s.last_seen ? `<small style="font-family:monospace;">${s.last_seen.replace('T', ' ').substring(0, 19)}</small>` : `<span style="color:var(--text-subtle);">-</span>`;
+
                 tr.innerHTML = `
                     <td><code>${s.ip}</code></td>
                     <td><strong>${s.hostname || 'N/A'}</strong></td>
                     <td>${s.model || 'N/A'}</td>
-                    <td><small>${s.serial_number || 'N/A'}</small></td>
-                    <td><small>${s.ios_version || 'N/A'}</small></td>
                     <td><span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></td>
+                    <td>${latencyText}</td>
+                    <td>${portsText}</td>
+                    <td>${lastSeenText}</td>
                     <td>
                         <button class="btn btn-sm btn-secondary" onclick="openSwitchDetails('${s.ip}')">${t('details')}</button>
                         <a href="/terminal/${s.ip}" target="_blank" class="btn btn-sm btn-primary" style="margin-inline-start:4px;">${t('terminal')}</a>
@@ -357,13 +243,28 @@ function openSwitchDetails(switchId) {
             const sw = resData.switch || {};
             const vlans = resData.vlans || [];
             const links = resData.links || [];
+            const ports = resData.ports || [];
             const devices = resData.devices || [];
             const isOnline = (sw.status || 'online').toLowerCase() === 'online';
             const badgeClass = isOnline ? 'badge-pill-success' : 'badge-pill-error';
             const badgeIcon = isOnline ? '🟢' : '🔴';
 
             titleEl.innerHTML = `🖥️ ${sw.hostname || sw.ip} <a href="/terminal/${sw.ip}" target="_blank" class="btn btn-sm btn-primary" style="margin-inline-start: 10px;">${t('openTerminalBtn')}</a>`;
-            subTitleEl.textContent = `${t('ipAddress')}: ${sw.ip} | ${t('status')}: ${t(isOnline ? 'online' : 'offline')}`;
+            subTitleEl.textContent = `${t('ipAddress')}: ${sw.ip} | ${t('status')}: ${t(isOnline ? 'online' : 'offline')} | ${t('latency')}: ${sw.latency_ms || 0} ms`;
+
+            let portsHtml = ports.length > 0
+                ? `<table class="mini-table"><thead><tr><th>${t('port')}</th><th>${t('status')}</th><th>${t('vlan')}</th><th>${t('macAddress')}</th></tr></thead><tbody>` +
+                  ports.map(p => {
+                      const pUp = (p.status || '').toLowerCase() === 'up';
+                      return `<tr>
+                          <td><code>${p.port_name}</code></td>
+                          <td><span class="badge-pill ${pUp ? 'badge-pill-success' : 'badge-pill-error'}">${pUp ? '🟢 Up' : '⚪ Down'}</span></td>
+                          <td>VLAN ${p.vlan}</td>
+                          <td><code>${p.mac_address || '-'}</code></td>
+                      </tr>`;
+                  }).join('') +
+                  `</tbody></table>`
+                : `<span style="color:var(--text-subtle);">${t('noPortData')}</span>`;
 
             let vlansHtml = vlans.length > 0 
                 ? vlans.map(v => `<span class="vlan-chip" title="Ports: ${v.ports || 'None'}"><b>VLAN ${v.vlan_id}</b> (${v.vlan_name || 'N/A'}) - ${v.port_count} ports</span>`).join('') 
@@ -390,9 +291,14 @@ function openSwitchDetails(switchId) {
                     </div>
                     <div class="sw-info-block">
                         <div class="sw-prop"><span class="sw-prop-label">${t('serialNumber')}:</span> <small>${sw.serial_number || 'N/A'}</small></div>
-                        <div class="sw-prop"><span class="sw-prop-label">${t('iosVersion')}:</span> <small>${sw.ios_version || 'N/A'}</small></div>
                         <div class="sw-prop"><span class="sw-prop-label">${t('status')}:</span> <span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></div>
+                        <div class="sw-prop"><span class="sw-prop-label">${t('ports')}:</span> <strong>${sw.ports_up || 0}</strong> / ${sw.ports_total || sw.total_ports || 0}</div>
                     </div>
+                </div>
+
+                <div class="sw-section-card">
+                    <h4>🔌 ${t('portDetails')} (${ports.length})</h4>
+                    ${portsHtml}
                 </div>
 
                 <div class="sw-section-card">
@@ -406,7 +312,7 @@ function openSwitchDetails(switchId) {
                 </div>
 
                 <div class="sw-section-card">
-                    <h4>🔌 ${t('connectedDevices')} (${devices.length})</h4>
+                    <h4>📱 ${t('connectedDevices')} (${devices.length})</h4>
                     ${devicesHtml}
                 </div>
             `;

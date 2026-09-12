@@ -40,11 +40,27 @@ def init_db():
         total_ports INTEGER DEFAULT 0,
         poe_capable TEXT DEFAULT 'N/A',
         status TEXT DEFAULT 'online',
+        last_seen DATETIME,
+        latency_ms REAL DEFAULT 0.0,
+        ports_total INTEGER DEFAULT 0,
+        ports_up INTEGER DEFAULT 0,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
-    # 3. Inter-Device Links Table (Topology Links)
+    # Run safe column migrations on existing switches table
+    cursor.execute("PRAGMA table_info(switches);")
+    existing_switch_cols = [row[1] for row in cursor.fetchall()]
+    if "last_seen" not in existing_switch_cols:
+        cursor.execute("ALTER TABLE switches ADD COLUMN last_seen DATETIME;")
+    if "latency_ms" not in existing_switch_cols:
+        cursor.execute("ALTER TABLE switches ADD COLUMN latency_ms REAL DEFAULT 0.0;")
+    if "ports_total" not in existing_switch_cols:
+        cursor.execute("ALTER TABLE switches ADD COLUMN ports_total INTEGER DEFAULT 0;")
+    if "ports_up" not in existing_switch_cols:
+        cursor.execute("ALTER TABLE switches ADD COLUMN ports_up INTEGER DEFAULT 0;")
+
+    # 3. Inter-Device Links Table (Metadata Links)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS links (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,7 +106,24 @@ def init_db():
     );
     """)
 
-    # 6. Scheduled Tasks Table
+    # 6. Switch Ports Table (Structured Ports & MAC correlation for Boomban)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS switch_ports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        switch_ip TEXT NOT NULL,
+        port_name TEXT NOT NULL,
+        status TEXT DEFAULT 'down',
+        vlan TEXT DEFAULT '1',
+        speed TEXT DEFAULT 'auto',
+        duplex TEXT DEFAULT 'auto',
+        mac_address TEXT DEFAULT '',
+        connected_device TEXT DEFAULT '',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(switch_ip, port_name)
+    );
+    """)
+
+    # 7. Scheduled Tasks Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS task_schedules (
         task_id TEXT PRIMARY KEY,
@@ -107,8 +140,8 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM task_schedules")
     if cursor.fetchone()[0] == 0:
         default_tasks = [
-            ("task_discovery", "کشف دستگاه‌های جدید", "full_sequence", 1, 60),
-            ("task_collector", "بروزرسانی اطلاعات سوئیچ‌ها", "full_sequence", 1, 1440),
+            ("task_discovery", "کشف دستگاه‌های جدید", "scan", 1, 60),
+            ("task_collector", "بروزرسانی اطلاعات سوئیچ‌ها", "collect", 1, 1440),
             ("task_status", "بررسی آنلاین بودن سوئیچ‌ها", "check_status", 1, 1),
         ]
         cursor.executemany("""
@@ -180,29 +213,72 @@ def save_settings(subnet, username="", password="", device_type="cisco_ios_telne
     conn.commit()
     conn.close()
 
-def upsert_switch(ip, hostname="", model="N/A", serial_number="N/A", ios_version="N/A", total_ports=0, poe_capable="N/A", status="online"):
+def upsert_switch(ip, hostname="", model="N/A", serial_number="N/A", ios_version="N/A", total_ports=0, poe_capable="N/A", status="online", last_seen=None, latency_ms=0.0, ports_total=None, ports_up=None):
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Retrieve current switch if exists to preserve ports counts if not provided
+    cursor.execute("SELECT ports_total, ports_up, total_ports, last_seen, latency_ms FROM switches WHERE ip = ?", (ip,))
+    row = cursor.fetchone()
+    current_ports_total = ports_total if ports_total is not None else (row["ports_total"] if row and row["ports_total"] else (total_ports or 0))
+    current_ports_up = ports_up if ports_up is not None else (row["ports_up"] if row and row["ports_up"] else 0)
+    current_last_seen = last_seen if last_seen is not None else (row["last_seen"] if row else None)
+    current_latency = latency_ms if latency_ms is not None else (row["latency_ms"] if row else 0.0)
+
     cursor.execute("""
-    INSERT INTO switches (ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO switches (ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status, last_seen, latency_ms, ports_total, ports_up, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(ip) DO UPDATE SET
-        hostname=excluded.hostname,
-        model=excluded.model,
-        serial_number=excluded.serial_number,
-        ios_version=excluded.ios_version,
-        total_ports=excluded.total_ports,
-        poe_capable=excluded.poe_capable,
+        hostname=COALESCE(NULLIF(excluded.hostname, ''), switches.hostname),
+        model=CASE WHEN excluded.model != 'N/A' THEN excluded.model ELSE switches.model END,
+        serial_number=CASE WHEN excluded.serial_number != 'N/A' THEN excluded.serial_number ELSE switches.serial_number END,
+        ios_version=CASE WHEN excluded.ios_version != 'N/A' THEN excluded.ios_version ELSE switches.ios_version END,
+        total_ports=CASE WHEN excluded.total_ports > 0 THEN excluded.total_ports ELSE switches.total_ports END,
+        poe_capable=CASE WHEN excluded.poe_capable != 'N/A' THEN excluded.poe_capable ELSE switches.poe_capable END,
         status=excluded.status,
+        last_seen=COALESCE(excluded.last_seen, switches.last_seen),
+        latency_ms=CASE WHEN excluded.latency_ms > 0 THEN excluded.latency_ms ELSE switches.latency_ms END,
+        ports_total=CASE WHEN excluded.ports_total > 0 THEN excluded.ports_total ELSE switches.ports_total END,
+        ports_up=CASE WHEN excluded.ports_up >= 0 THEN excluded.ports_up ELSE switches.ports_up END,
         updated_at=CURRENT_TIMESTAMP;
-    """, (ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status))
+    """, (ip, hostname, model, serial_number, ios_version, total_ports or current_ports_total, poe_capable, status, current_last_seen, current_latency, current_ports_total, current_ports_up))
     conn.commit()
     conn.close()
 
-def update_switch_status(ip, status):
+def update_switch_status(ip, status, latency_ms=None, last_seen=None):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE switches SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE ip = ?", (status, ip))
+    if latency_ms is not None and last_seen is not None:
+        cursor.execute("""
+        UPDATE switches 
+        SET status = ?, latency_ms = ?, last_seen = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE ip = ?
+        """, (status, latency_ms, last_seen, ip))
+    elif latency_ms is not None:
+        cursor.execute("""
+        UPDATE switches 
+        SET status = ?, latency_ms = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE ip = ?
+        """, (status, latency_ms, ip))
+    elif last_seen is not None:
+        cursor.execute("""
+        UPDATE switches 
+        SET status = ?, last_seen = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE ip = ?
+        """, (status, last_seen, ip))
+    else:
+        cursor.execute("UPDATE switches SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE ip = ?", (status, ip))
+    conn.commit()
+    conn.close()
+
+def update_switch_port_counts(ip, ports_total, ports_up):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    UPDATE switches 
+    SET ports_total = ?, ports_up = ?, total_ports = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE ip = ?
+    """, (ports_total, ports_up, ports_total, ip))
     conn.commit()
     conn.close()
 
@@ -244,6 +320,44 @@ def upsert_vlan(switch, vlan_id, vlan_name="Unknown", port_count=0, ports=""):
     conn.commit()
     conn.close()
 
+def upsert_switch_port(switch_ip, port_name, status="down", vlan="1", speed="auto", duplex="auto", mac_address="", connected_device=""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO switch_ports (switch_ip, port_name, status, vlan, speed, duplex, mac_address, connected_device, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(switch_ip, port_name) DO UPDATE SET
+        status=excluded.status,
+        vlan=excluded.vlan,
+        speed=excluded.speed,
+        duplex=excluded.duplex,
+        mac_address=CASE WHEN excluded.mac_address != '' THEN excluded.mac_address ELSE switch_ports.mac_address END,
+        connected_device=CASE WHEN excluded.connected_device != '' THEN excluded.connected_device ELSE switch_ports.connected_device END,
+        updated_at=CURRENT_TIMESTAMP;
+    """, (switch_ip, port_name, status, str(vlan), speed, duplex, mac_address, connected_device))
+    conn.commit()
+    conn.close()
+
+def clear_switch_ports(switch_ip):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM switch_ports WHERE switch_ip = ?", (switch_ip,))
+    conn.commit()
+    conn.close()
+
+def get_switch_ports(switch_ip):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT port_name, status, vlan, speed, duplex, mac_address, connected_device, updated_at
+    FROM switch_ports
+    WHERE switch_ip = ?
+    ORDER BY port_name
+    """, (switch_ip,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
 def upsert_connected_device(switch_name, port, vlan, mac_address, ip_address="", vendor="", device_type="Other", name="", user=""):
     if not mac_address: return
     conn = get_connection()
@@ -268,7 +382,12 @@ def upsert_connected_device(switch_name, port, vlan, mac_address, ip_address="",
 def get_switches():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status, updated_at FROM switches ORDER BY hostname, ip")
+    cursor.execute("""
+    SELECT id, ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status, 
+           last_seen, latency_ms, ports_total, ports_up, updated_at 
+    FROM switches 
+    ORDER BY hostname, ip
+    """)
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows
@@ -302,7 +421,8 @@ def get_switch_details(switch_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-    SELECT id, ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status, updated_at
+    SELECT id, ip, hostname, model, serial_number, ios_version, total_ports, poe_capable, status,
+           last_seen, latency_ms, ports_total, ports_up, updated_at
     FROM switches WHERE ip = ? OR hostname = ? OR CAST(id AS TEXT) = ?
     """, (switch_id, switch_id, switch_id))
     sw_row = cursor.fetchone()
@@ -327,6 +447,13 @@ def get_switch_details(switch_id):
     links = [dict(r) for r in cursor.fetchall()]
 
     cursor.execute("""
+    SELECT port_name, status, vlan, speed, duplex, mac_address, connected_device
+    FROM switch_ports WHERE switch_ip = ?
+    ORDER BY port_name
+    """, (ip,))
+    ports = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("""
     SELECT port, vlan, mac_address, ip_address, vendor, device_type
     FROM connected_devices WHERE switch_name = ? OR switch_name = ? ORDER BY port
     """, (hostname, ip))
@@ -337,65 +464,10 @@ def get_switch_details(switch_id):
         "switch": sw,
         "vlans": vlans,
         "links": links,
+        "ports": ports,
         "devices": devices
     }
 
-def get_vis_topology():
-    """Generates Vis.js formatted nodes and edges for dynamic interactive topology."""
-    switches = get_switches()
-    links = get_links()
-    
-    node_map = {}
-    nodes = []
-    
-    # 1. Switch Nodes
-    for sw in switches:
-        node_id = sw["hostname"] or sw["ip"]
-        node_map[node_id] = node_id
-        nodes.append({
-            "id": node_id,
-            "label": f"{node_id}\n({sw['ip']})",
-            "group": "switch",
-            "title": f"<b>Switch:</b> {node_id}<br><b>IP:</b> {sw['ip']}<br><b>Model:</b> {sw['model']}<br><b>Ports:</b> {sw['total_ports']}",
-            "ip": sw["ip"],
-            "model": sw["model"],
-            "shape": "box",
-            "color": {"background": "#1e293b", "border": "#3b82f6", "highlight": {"border": "#60a5fa", "background": "#334155"}},
-            "font": {"color": "#f8fafc", "face": "Inter"}
-        })
-
-    # 2. Edges / Connections
-    edges = []
-    seen_links = set()
-    for l in links:
-        src = l["source_switch"]
-        dst = l["target_switch"]
-        
-        # Ensure dst node exists if not in switch list
-        if dst not in node_map:
-            node_map[dst] = dst
-            nodes.append({
-                "id": dst,
-                "label": dst,
-                "group": "device",
-                "title": f"<b>Device/Neighbor:</b> {dst}",
-                "shape": "ellipse",
-                "color": {"background": "#0f172a", "border": "#8b5cf6"},
-                "font": {"color": "#cbd5e1", "face": "Inter"}
-            })
-            
-        link_key = tuple(sorted([src, dst]))
-        edges.append({
-            "from": src,
-            "to": dst,
-            "label": f"{l['source_port']} ⇄ {l['target_port']}",
-            "title": f"<b>Local Port:</b> {l['source_port']}<br><b>Remote Port:</b> {l['target_port']}<br><b>Protocol:</b> {l['protocol']}",
-            "color": {"color": "#8b5cf6", "highlight": "#a78bfa"},
-            "width": 2
-        })
-
-    return {"nodes": nodes, "edges": edges}
-
 if __name__ == "__main__":
     init_db()
-    print("CiscoToolsV2 database initialized at:", DB_PATH)
+    print("Simban database initialized at:", DB_PATH)

@@ -1,26 +1,24 @@
-# CiscoToolsV2
+# سیم‌بان (Simban) 🔌
 
-> [!NOTE]
-> **اطلاعیه تغییر نام و یکپارچه‌سازی:** این پروژه به زودی با نام رسمی **سیم‌بان (Simban)** و با ساختار پوشه `simban` در قالب اکوسیستم **بوم‌بان (Boomban)** به عنوان ماژول تخصصی پایش، ترسیم توپولوژی و مدیریت سوییچ‌های سیسکو به فعالیت خود ادامه خواهد داد.
+> **سیم‌بان** بازوی تخصصی **کشف، پایش سلامت آنلاین/آفلاین، مدیریت سخت‌افزاری و وب‌ترمینال سوییچ‌های سیسکو** در قالب اکوسیستم **بوم‌بان (Boomban)** است.
+> 
+> *توجه:* ترسیم کلان توپولوژی شبکه و ارتباطات گراف در سامانه مرکزی **بوم‌بان** مدیریت می‌شود و سیم‌بان بر پایدارسازی ارتباطات سوییچ و ارائه سرویس‌های REST API و Web Terminal متمرکز است.
 
-A web dashboard for discovering, mapping, and managing Cisco switches on a local network. Built with FastAPI + Netmiko, with a live terminal, topology view, and scheduled collection.
+---
 
-## Features
+## قابلیت‌های کلیدی (Features)
 
-- **Subnet scanning** — probes IPs for Telnet/SSH reachable switches
-- **CDP crawl** — walks CDP neighbors to build inter-switch links
-- **Data collection** — pulls model, serial, IOS version, VLANs, connected devices
-- **Topology view** — visual map of switches and links
-- **Web terminal** — Telnet into any switch from the browser (WebSocket)
-- **Scheduled tasks** — auto-refresh scans/collection on an interval (APScheduler)
-- **Status checks** — online/offline monitoring of known switches
+- **کشف خودکار زیرشبکه (Subnet Discovery)** — اسکن سریع رنج‌های شبکه جهت شناسایی سوییچ‌های سیسکو از طریق پورت‌های Telnet/SSH.
+- **پایش پیوسته وضعیت و تأخیر (Health Probe & Latency)** — بررسی مداوم آنلاین/آفلاین بودن سوییچ‌ها، اندازه‌گیری تأخیر پاسخ‌دهی پینگ (Latency بر حسب میلی‌ثانیه) و ثبت زمان آخرین پاسخ (`last_seen`).
+- **وب‌ترمینال بلادرنگ (Web Terminal)** — دسترسی بی‌درنگ به محیط متنی و خط فرمان (CLI) سوییچ با WebSocket و قابلیت بستن خودکار سشن‌های غیرفعال (Idle Timeout).
+- **استخراج جزئیات پورت‌ها و مک‌ها (Hardware & Port Inventory)** — دریافت مدل، شماره سریال، نسخه IOS، شمارش پورت‌های Up/Total و استخراج مک‌آدرس‌های متصل به پورت‌ها جهت همبستگی با دوربین‌های مداربسته در بوم‌بان.
+- **ارائه REST API استاندارد برای بوم‌بان** — اندپوینت‌های `/api/switches` و `/api/switches/{ip}/ports` با فرمت استاندارد ماشین‌خوان.
 
-## Requirements
+---
 
-- Python 3.9+
-## Setup & Run (راه‌اندازی و اجرا)
+## راه‌اندازی و اجرا (Setup & Run)
 
-### Windows (PowerShell):
+### ویندوز (PowerShell):
 ```powershell
 # منوی تعاملی و مدیریت کامل
 .\start.ps1
@@ -29,42 +27,33 @@ A web dashboard for discovering, mapping, and managing Cisco switches on a local
 .\start.ps1 -Action start-bg -Port 29999
 ```
 
-### Linux & macOS (Bash):
+### لینوکس و مک (Bash):
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
-داشبورد به طور پیش‌فرض بر روی آدرس زیر در دسترس خواهد بود:
+داشبورد به طور پیش‌فرض بر روی آدرس زیر در دسترس خواهد بود:  
 `http://localhost:29999` (یا `http://127.0.0.1:29999`)
 
-Open the dashboard, enter your subnet CIDR and Cisco credentials, then run a scan or the full sequence (Scan → CDP Crawl → Collect).
+---
 
-## Tech Stack
-
-- **FastAPI** + Uvicorn — backend & API
-- **Netmiko** — switch connectivity (Telnet/SSH)
-- **APScheduler** — scheduled tasks
-- **Jinja2** — templates
-- **SQLite** — local data store (`data/network.db`)
-
-## Project Structure
+## ساختار پروژه (Project Structure)
 
 ```
-app/
-  main.py        # FastAPI app, routes, WebSocket terminal
-  config.py      # paths
-  db.py          # SQLite schema & queries
-  scanner.py     # subnet scan, CDP crawl, status checks
-  collector.py   # show commands parsing (version, VLANs, devices)
-  scheduler.py   # APScheduler task jobs
-  terminal.py    # Telnet WebSocket bridge
-  static/        # CSS, JS, translations
-  templates/     # index.html, terminal.html
-data/            # SQLite DB (gitignored)
+simban/
+├── app/
+│   ├── main.py        # وب‌سرور FastAPI، اندپوینت‌های REST و سشن‌های WebSocket
+│   ├── config.py      # تنظیمات مسیرها و دیتابیس
+│   ├── db.py          # ساختار SQLite، جداول switches, switch_ports, links و tasks
+│   ├── scanner.py     # موتور اسکن ساب‌نت و پایش سلامت (Ping & Latency)
+│   ├── collector.py   # پارسر فرامین سیسکو (نسخه، پورت‌ها، مک‌آدرس‌ها و VLANها)
+│   ├── scheduler.py   # زمان‌بندی کارهای پس‌زمینه (APScheduler)
+│   ├── terminal.py    # پل ارتباطی WebSocket و تلمنت همراه با Idle Timeout
+│   ├── static/        # فایل‌های CSS، جاوااسکریپت و ترجمه دوزبانه
+│   └── templates/     # قالب‌های داشبورد و وب‌ترمینال
+├── data/              # فایل دیتابیس محلی SQLite (network.db)
+├── AGENTS.md          # دستورالعمل‌ها و مرزهای وظایف ایجنت‌ها
+├── MIGRATION_PLAN.md  # چک‌لیست و نیازمندی‌های مهاجرت
+└── README.md
 ```
-
-## Notes
-
-- Credentials are stored locally in `data/network.db`. The dashboard binds to `127.0.0.1` only — do not expose it on a public network.
-- Telnet transmits credentials in cleartext; prefer SSH-capable devices where possible.

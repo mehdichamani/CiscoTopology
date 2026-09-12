@@ -114,9 +114,15 @@ class TelnetSession:
 
         return True
 
-    async def bridge(self, websocket):
-        """Bridge websocket messages with socket bi-directionally."""
+    async def bridge(self, websocket, idle_timeout: float = 600.0):
+        """
+        Bridge websocket messages with socket bi-directionally.
+        Includes idle timeout (default 10 mins) to prevent exhausting Cisco VTY lines.
+        """
+        last_activity = self.loop.time()
+
         async def socket_to_ws():
+            nonlocal last_activity
             while True:
                 try:
                     raw = await self.loop.sock_recv(self.sock, 2048)
@@ -125,24 +131,49 @@ class TelnetSession:
                         break
                     clean = self.filter_telnet_iac(raw).decode('utf-8', errors='ignore')
                     if clean:
+                        last_activity = self.loop.time()
                         await websocket.send_text(clean)
-                except Exception as e:
+                except Exception:
                     break
 
         async def ws_to_socket():
+            nonlocal last_activity
             while True:
                 try:
                     data = await websocket.receive_text()
                     if data:
+                        last_activity = self.loop.time()
                         await self.loop.sock_sendall(self.sock, data.encode('utf-8'))
-                except Exception as e:
+                except Exception:
                     break
 
-        await asyncio.gather(socket_to_ws(), ws_to_socket())
+        async def idle_checker():
+            while True:
+                await asyncio.sleep(15)
+                if self.loop.time() - last_activity > idle_timeout:
+                    try:
+                        await websocket.send_text("\r\n\x1b[33m⚠️ Terminal session closed due to inactivity (Idle Timeout).\x1b[0m\r\n")
+                    except Exception:
+                        pass
+                    break
+
+        tasks = [
+            asyncio.create_task(socket_to_ws()),
+            asyncio.create_task(ws_to_socket()),
+            asyncio.create_task(idle_checker())
+        ]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            t.cancel()
 
     def close(self):
         if self.sock:
             try:
+                self.sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
                 self.sock.close()
             except Exception:
                 pass
+            self.sock = None

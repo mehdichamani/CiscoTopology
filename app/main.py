@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from app.config import STATIC_DIR, TEMPLATES_DIR
 from app.db import (
     init_db, is_configured, get_settings, save_settings,
-    get_switches, get_vlans, get_connected_devices, get_vis_topology,
+    get_switches, get_links, get_vlans, get_connected_devices, get_switch_ports,
     get_switch_details, get_task_schedules, get_task_schedule, save_task_schedule
 )
 from app.scheduler import start_scheduler, stop_scheduler, reload_task_jobs
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     yield
     stop_scheduler()
 
-app = FastAPI(title="CiscoToolsV2 Dashboard", lifespan=lifespan)
+app = FastAPI(title="Simban - Cisco Switch Intelligence & Web Terminal", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -93,7 +93,56 @@ async def update_config(data: dict):
 
 @app.get("/api/switches")
 async def fetch_switches():
-    return JSONResponse(get_switches())
+    """
+    Standard machine-readable switch inventory & health endpoint for Boomban.
+    Output:
+    [
+      {
+        "id": "sw_192_168_1_10",
+        "ip": "192.168.1.10",
+        "hostname": "Switch-Anbar",
+        "model": "WS-C2960-24TT-L",
+        "status": "online",
+        "last_seen": "2026-09-08T12:00:00Z",
+        "latency_ms": 2.4,
+        "ports_total": 24,
+        "ports_up": 18
+      }
+    ]
+    """
+    raw_switches = get_switches()
+    formatted = []
+    for s in raw_switches:
+        ip = s.get("ip", "")
+        # Generate stable machine identifier
+        sw_id = f"sw_{ip.replace('.', '_')}" if ip else f"sw_{s.get('id', 0)}"
+        formatted.append({
+            "id": sw_id,
+            "ip": ip,
+            "hostname": s.get("hostname") or ip,
+            "model": s.get("model") or "N/A",
+            "serial_number": s.get("serial_number") or "N/A",
+            "ios_version": s.get("ios_version") or "N/A",
+            "status": s.get("status") or "offline",
+            "last_seen": s.get("last_seen"),
+            "latency_ms": s.get("latency_ms", 0.0),
+            "ports_total": s.get("ports_total", 0),
+            "ports_up": s.get("ports_up", 0),
+            "updated_at": s.get("updated_at")
+        })
+    return JSONResponse(formatted)
+
+@app.get("/api/switches/{switch_ip:path}/ports")
+async def fetch_switch_ports_endpoint(switch_ip: str):
+    """
+    Port status & MAC correlation endpoint for Boomban cameras/edge correlation.
+    """
+    ports = get_switch_ports(switch_ip)
+    return JSONResponse({
+        "switch_ip": switch_ip,
+        "ports_count": len(ports),
+        "ports": ports
+    })
 
 @app.get("/api/tasks")
 async def fetch_tasks():
@@ -122,9 +171,12 @@ async def fetch_switch_details(switch_id: str):
         return JSONResponse({"status": "error", "message": "Switch not found"}, status_code=404)
     return JSONResponse(details)
 
-@app.get("/api/topology")
-async def fetch_topology():
-    return JSONResponse(get_vis_topology())
+@app.get("/api/links")
+async def fetch_links():
+    """
+    Returns all discovered inter-switch and CDP links.
+    """
+    return JSONResponse(get_links())
 
 @app.get("/api/vlans")
 async def fetch_vlans():

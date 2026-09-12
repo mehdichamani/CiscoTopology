@@ -32,16 +32,32 @@ def probe_port(ip, ports=(23, 22), timeout=0.8):
             pass
     return None
 
+import time
+from datetime import datetime, timezone
+
 def check_single_switch_status(sw_ip, timeout=1.0):
+    """
+    Check switch availability and measure latency in milliseconds.
+    Returns (is_online: bool, latency_ms: float).
+    """
+    t_start = time.perf_counter()
     res = probe_port(sw_ip, ports=(23, 22, 80, 443, 8080), timeout=timeout)
     if res:
-        return True
+        latency = round((time.perf_counter() - t_start) * 1000.0, 2)
+        return True, latency
+
+    # Fallback to ICMP ping
     try:
+        t_ping_start = time.perf_counter()
         cmd = ["ping", "-n", "1", "-w", "600", str(sw_ip)]
         output = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return output.returncode == 0
+        if output.returncode == 0:
+            latency = round((time.perf_counter() - t_ping_start) * 1000.0, 2)
+            return True, latency
     except Exception:
-        return False
+        pass
+
+    return False, 0.0
 
 def check_all_switches_status(log_callback=None):
     switches = get_switches()
@@ -58,16 +74,18 @@ def check_all_switches_status(log_callback=None):
             ip = sw["ip"]
             hostname = sw["hostname"] or ip
             try:
-                is_online = future.result()
+                is_online, latency_ms = future.result()
                 status = "online" if is_online else "offline"
-                update_switch_status(ip, status)
-                results[ip] = status
+                now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if is_online else sw.get("last_seen")
+                update_switch_status(ip, status, latency_ms=latency_ms if is_online else 0.0, last_seen=now_iso if is_online else None)
+                results[ip] = {"status": status, "latency_ms": latency_ms if is_online else 0.0}
                 icon = "🟢" if is_online else "🔴"
-                log(f"  {icon} [{status.upper()}] Switch {hostname} ({ip})", log_callback)
-            except Exception:
-                update_switch_status(ip, "offline")
-                results[ip] = "offline"
-                log(f"  🔴 [OFFLINE] Switch {hostname} ({ip})", log_callback)
+                lat_str = f" ({latency_ms} ms)" if is_online else ""
+                log(f"  {icon} [{status.upper()}]{lat_str} Switch {hostname} ({ip})", log_callback)
+            except Exception as e:
+                update_switch_status(ip, "offline", latency_ms=0.0)
+                results[ip] = {"status": "offline", "latency_ms": 0.0}
+                log(f"  🔴 [OFFLINE] Switch {hostname} ({ip}) - Error: {e}", log_callback)
 
     log(f"✅ Switch status health check complete.", log_callback)
     return results

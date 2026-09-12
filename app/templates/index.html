@@ -13,9 +13,6 @@
         <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
     </noscript>
     
-    <!-- Vis.js Topology (Local Vendor Bundle - Offline & Fast) -->
-    <script type="text/javascript" src="/static/vendor/vis-network/vis-network.min.js"></script>
-
     <!-- App Design Styling -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -29,10 +26,10 @@
                 <path d="M12 2L13.8 9.2L21 11L13.8 12.8L12 20L10.2 12.8L3 11L10.2 9.2L12 2Z"/>
             </svg>
             <h1 class="brand-title">
-                <span data-i18n="brand">CiscoTools</span>
-                <span class="brand-accent">V2</span>
+                <span data-i18n="brand">سیم‌بان</span>
+                <span class="brand-accent">Simban</span>
             </h1>
-            <span class="brand-subtitle-badge" data-i18n="brandSubtitle">سامانه هوشمند پایش و کشف شبکه</span>
+            <span class="brand-subtitle-badge" data-i18n="brandSubtitle">مدیریت، پایش سلامت و وب‌ترمینال سوییچ‌های سیسکو</span>
         </div>
 
         <div class="nav-controls">
@@ -51,14 +48,14 @@
         <section class="hero-section">
             <div class="hero-header">
                 <div class="hero-title-group">
-                    <h2 data-i18n="brandSubtitle">سامانه هوشمند پایش و کشف شبکه</h2>
-                    <p data-i18n="settingsWizardDesc">پایش خودکار سوئیچ‌ها، ترسیم توپولوژی زنده و بررسی وضعیت کارکرد تجهیزات Cisco</p>
+                    <h2 data-i18n="brandSubtitle">مدیریت، پایش سلامت و وب‌ترمینال سوییچ‌های سیسکو</h2>
+                    <p data-i18n="settingsWizardDesc">پایش خودکار وضعیت آنلاین/آفلاین، تأخیر پینگ، پورت‌ها و دسترسی به ترمینال وب</p>
                 </div>
                 <div class="hero-quick-actions">
                     <span class="form-hint" style="margin:0 4px;" data-i18n="quickActions">عملیات سریع:</span>
-                    <button class="btn btn-coral-pill" onclick="runAction('full_sequence')" data-i18n="fullScanSequence">🚀 اسکن و جمع‌آوری کامل</button>
-                    <button class="btn btn-coral-pill" onclick="runAction('crawl_cdp')" data-i18n="cdpCrawl">🕸️ پیگیری CDP</button>
-                    <button class="btn btn-coral-pill" onclick="runAction('check_status')" data-i18n="statusCheck">💓 پایش وضعیت</button>
+                    <button class="btn btn-coral-pill" onclick="runAction('check_status')" data-i18n="statusCheck">💓 پایش وضعیت (Ping)</button>
+                    <button class="btn btn-coral-pill" onclick="runAction('scan')" data-i18n="taskDiscovery">🔍 اسکن ساب‌نت</button>
+                    <button class="btn btn-coral-pill" onclick="runAction('collect')" data-i18n="taskCollector">📥 بروزرسانی مشخصات و پورت‌ها</button>
                 </div>
             </div>
 
@@ -74,7 +71,7 @@
                         </label>
                         <div class="task-card-info">
                             <h3 data-i18n="taskDiscovery">🔍 کشف دستگاه‌های جدید</h3>
-                            <p data-i18n="taskDiscoveryDesc">اسکن خودکار زیرشبکه جهت ردیابی سوئیچ‌ها</p>
+                            <p data-i18n="taskDiscoveryDesc">اسکن دوره‌ای زیرشبکه جهت یافتن سوییچ‌های سیسکو</p>
                         </div>
                     </div>
                     <div class="task-card-footer">
@@ -93,15 +90,15 @@
                             <span class="slider"></span>
                         </label>
                         <div class="task-card-info">
-                            <h3 data-i18n="taskCollector">📥 بروزرسانی اطلاعات سوئیچ‌ها</h3>
-                            <p data-i18n="taskCollectorDesc">جمع‌آوری VLANها، همسایه‌ها و پورت‌ها</p>
+                            <h3 data-i18n="taskCollector">📥 بروزرسانی موجودی و پورت‌ها</h3>
+                            <p data-i18n="taskCollectorDesc">استخراج پورت‌های فعال، مدل سخت‌افزار، VLAN و مک‌ها</p>
                         </div>
                     </div>
                     <div class="task-card-footer">
                         <span class="schedule-badge" onclick="editTaskInterval('task_collector')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
                             ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_collector">1440</span> <span data-i18n="minutes">دقیقه</span>
                         </span>
-                        <button class="btn btn-sm btn-secondary" onclick="runAction('full_sequence')" data-i18n="manualRun">▶ اجرای دستی</button>
+                        <button class="btn btn-sm btn-secondary" onclick="runAction('collect')" data-i18n="manualRun">▶ اجرای دستی</button>
                     </div>
                 </div>
 
@@ -113,8 +110,8 @@
                             <span class="slider"></span>
                         </label>
                         <div class="task-card-info">
-                            <h3 data-i18n="taskStatus">💓 بررسی آنلاین بودن سوئیچ‌ها</h3>
-                            <p data-i18n="taskStatusDesc">پایش وضعیت ارتباطی و پاسخ‌دهی دستگاه‌ها</p>
+                            <h3 data-i18n="taskStatus">💓 پایش آنلاین/آفلاین و تأخیر</h3>
+                            <p data-i18n="taskStatusDesc">پایش پیوسته پاسخ‌دهی و اندازه‌گیری Latency سوییچ‌ها</p>
                         </div>
                     </div>
                     <div class="task-card-footer">
@@ -134,37 +131,22 @@
             </div>
         </section>
 
-        <!-- Main Workspace: Interactive Canvas & Terminal Console -->
+        <!-- Main Workspace: Switch Health & Management Card -->
         <div class="workspace-grid">
 
-            <!-- Tabbed Visualization Card -->
+            <!-- Switch Inventory & Health Section -->
             <section class="card-section">
                 <div class="card-header-row">
                     <div class="tabs-container">
-                        <button class="category-tab active" onclick="switchTab('tab-topology')" data-i18n="interactiveTopology">🗺️ نقشه توپولوژی تعاملی</button>
-                        <button class="category-tab" onclick="switchTab('tab-switches')" data-i18n="switchInventory">🖥️ فهرست سوئیچ‌ها</button>
+                        <button class="category-tab active" data-i18n="switchInventory">🖥️ فهرست و پایش سلامت سوییچ‌ها</button>
                     </div>
                     <div style="display:flex; gap:8px;">
-                        <button class="btn btn-sm btn-secondary" onclick="toggleTopologyFullscreen()" title="Toggle Fullscreen" data-i18n="fullscreen">⛶ تمام‌صفحه</button>
-                        <button class="btn btn-sm btn-secondary" onclick="reloadCurrentTab()" data-i18n="refreshView">🔄 بروزرسانی</button>
+                        <button class="btn btn-sm btn-secondary" onclick="loadSwitches()" data-i18n="refreshView">🔄 بروزرسانی</button>
                     </div>
                 </div>
 
                 <div class="tab-contents">
-                    
-                    <!-- Vis.js Interactive Topology Tab -->
-                    <div id="tab-topology" class="tab-pane active">
-                        <div id="vis-topology-container"></div>
-                        <div class="topology-legend">
-                            <span class="legend-item"><span class="legend-dot legend-dot-switch"></span> <span data-i18n="switchLegend">سوئیچ شبکه</span></span>
-                            <span class="legend-item"><span class="legend-dot legend-dot-neighbor"></span> <span data-i18n="neighborLegend">دستگاه همسایه</span></span>
-                            <span class="legend-item"><span class="legend-dot legend-dot-link"></span> <span data-i18n="linkLegend">لینک ارتباطی</span></span>
-                            <span style="font-size:0.75rem;" data-i18n="legendDragHint">(جابه‌جایی گره‌ها، زوم با اسکرول، دابل‌کلیک برای مشاهده جزئیات)</span>
-                        </div>
-                    </div>
-
-                    <!-- Switch Inventory Table Tab -->
-                    <div id="tab-switches" class="tab-pane">
+                    <div id="tab-switches" class="tab-pane active">
                         <div class="table-wrapper">
                             <table id="switches-table">
                                 <thead>
@@ -172,19 +154,19 @@
                                         <th data-i18n="ipAddress">آدرس IP</th>
                                         <th data-i18n="hostname">نام دستگاه</th>
                                         <th data-i18n="model">مدل</th>
-                                        <th data-i18n="serialNumber">شماره سریال</th>
-                                        <th data-i18n="iosVersion">نسخه IOS</th>
                                         <th data-i18n="status">وضعیت</th>
+                                        <th data-i18n="latency">تأخیر (Ping)</th>
+                                        <th data-i18n="ports">پورت‌ها (Up/Total)</th>
+                                        <th data-i18n="lastSeen">آخرین پاسخ‌دهی</th>
                                         <th data-i18n="actions">عملیات</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td colspan="7" style="text-align:center; padding: 24px;" data-i18n="noSwitchesRecorded">هیچ سوئیچی در دیتابیس ثبت نشده است.</td></tr>
+                                    <tr><td colspan="8" style="text-align:center; padding: 24px;" data-i18n="noSwitchesRecorded">هیچ سوئیچی در دیتابیس ثبت نشده است.</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-
                 </div>
             <!-- Floating Code Window Card (Real-Time Terminal Console Drawer) -->
             <section class="code-window-card floating-console" id="floating-console-drawer">

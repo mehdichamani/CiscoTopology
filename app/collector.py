@@ -1,7 +1,12 @@
 import re
 import concurrent.futures
+from datetime import datetime, timezone
 from netmiko import ConnectHandler
-from app.db import get_settings, get_switches, upsert_switch, upsert_vlan, upsert_connected_device, upsert_link
+from app.db import (
+    get_settings, get_switches, upsert_switch, upsert_vlan, 
+    upsert_switch_port, clear_switch_ports, update_switch_port_counts,
+    upsert_connected_device
+)
 
 def parse_show_version(output):
     model = "N/A"
@@ -41,6 +46,88 @@ def parse_vlans(output):
             }
     return vlan_map
 
+def parse_interfaces_status(output):
+    """
+    Parse Cisco 'show interfaces status' output:
+    Port      Name               Status       Vlan       Duplex  Speed Type
+    Fa0/1                        connected    1          a-full  a-100 10/100BaseTX
+    Fa0/2                        notconnect   1            auto   auto 10/100BaseTX
+    """
+    ports = {}
+    lines = output.splitlines()
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("Port") or line.startswith("----"):
+            continue
+        
+        # Match typical port patterns (Fa0/1, Gi1/0/24, Te1/1, etc.)
+        match = re.match(r"^([A-Za-z]{2,4}\s*[\d/]+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled|faulty)\s+(\S+)\s+(\S+)\s+(\S+)", line, re.IGNORECASE)
+        if match:
+            p_name = match.group(1).replace(" ", "")
+            desc = match.group(2).strip()
+            raw_status = match.group(3).lower()
+            status = "up" if raw_status == "connected" else "down"
+            vlan = match.group(4)
+            duplex = match.group(5)
+            speed = match.group(6)
+            ports[p_name] = {
+                "port_name": p_name,
+                "status": status,
+                "vlan": vlan,
+                "duplex": duplex,
+                "speed": speed,
+                "description": desc
+            }
+    return ports
+
+def parse_ip_interface_brief(output):
+    """
+    Fallback parser for 'show ip interface brief' when 'show interfaces status' is unavailable:
+    Interface              IP-Address      OK? Method Status                Protocol
+    FastEthernet0/1        unassigned      YES unset  up                    up
+    """
+    ports = {}
+    for line in output.splitlines():
+        line = line.strip()
+        if not line or line.startswith("Interface") or line.startswith("----"):
+            continue
+        parts = line.split()
+        if len(parts) >= 5:
+            p_name = parts[0]
+            status_col = parts[-2].lower()
+            proto_col = parts[-1].lower()
+            is_up = (status_col == "up" and proto_col == "up")
+            ports[p_name] = {
+                "port_name": p_name,
+                "status": "up" if is_up else "down",
+                "vlan": "1",
+                "duplex": "auto",
+                "speed": "auto",
+                "description": ""
+            }
+    return ports
+
+def parse_mac_address_table(output):
+    """
+    Parse 'show mac address-table' or 'show mac-address-table':
+    Vlan    Mac Address       Type        Ports
+    ----    -----------       --------    -----
+       1    0014.a86b.cf12    DYNAMIC     Fa0/1
+    """
+    mac_map = {}
+    for line in output.splitlines():
+        line = line.strip()
+        if not line or line.startswith("Vlan") or line.startswith("----") or line.startswith("Total"):
+            continue
+        m = re.search(r"([\da-fA-F]{4}\.[\da-fA-F]{4}\.[\da-fA-F]{4})\s+\S+\s+([A-Za-z]{2,4}\s*[\d/]+)", line)
+        if m:
+            mac = m.group(1).lower()
+            port = m.group(2).replace(" ", "")
+            if port not in mac_map:
+                mac_map[port] = []
+            mac_map[port].append(mac)
+    return mac_map
+
 def query_single_switch(sw_dict, settings, log_callback=None):
     ip = sw_dict["ip"]
     username = settings.get("username", "")
@@ -63,8 +150,42 @@ def query_single_switch(sw_dict, settings, log_callback=None):
             prompt = net.find_prompt()
             hostname = prompt.strip("#>")
 
+            # 1. Version & Hardware Info
             ver_raw = net.send_command("show version", read_timeout=15)
             model, serial, version = parse_show_version(ver_raw)
+
+            # 2. Port Status Collection
+            ports_data = {}
+            try:
+                if_status_raw = net.send_command("show interfaces status", read_timeout=15)
+                if "Invalid input" not in if_status_raw and len(if_status_raw.strip()) > 30:
+                    ports_data = parse_interfaces_status(if_status_raw)
+            except Exception:
+                pass
+
+            if not ports_data:
+                try:
+                    ip_if_raw = net.send_command("show ip interface brief", read_timeout=15)
+                    ports_data = parse_ip_interface_brief(ip_if_raw)
+                except Exception:
+                    pass
+
+            # 3. MAC Address Table Collection
+            mac_data = {}
+            try:
+                mac_raw = net.send_command("show mac address-table", read_timeout=15)
+                if "Invalid input" in mac_raw:
+                    mac_raw = net.send_command("show mac-address-table", read_timeout=15)
+                mac_data = parse_mac_address_table(mac_raw)
+            except Exception:
+                pass
+
+            # Calculate ports total and up
+            physical_ports = [p for p in ports_data.values() if not p["port_name"].lower().startswith("vl")]
+            ports_total = len(physical_ports) if physical_ports else len(ports_data)
+            ports_up = sum(1 for p in (physical_ports or ports_data.values()) if p["status"] == "up")
+
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
             upsert_switch(
                 ip=ip,
@@ -72,10 +193,36 @@ def query_single_switch(sw_dict, settings, log_callback=None):
                 model=model,
                 serial_number=serial,
                 ios_version=version,
-                status="online"
+                total_ports=ports_total,
+                status="online",
+                last_seen=now_iso,
+                ports_total=ports_total,
+                ports_up=ports_up
             )
 
-            # VLANs
+            # Save individual port details to switch_ports
+            for p_name, p_info in ports_data.items():
+                macs = mac_data.get(p_name, [])
+                primary_mac = macs[0] if macs else ""
+                upsert_switch_port(
+                    switch_ip=ip,
+                    port_name=p_name,
+                    status=p_info["status"],
+                    vlan=p_info.get("vlan", "1"),
+                    speed=p_info.get("speed", "auto"),
+                    duplex=p_info.get("duplex", "auto"),
+                    mac_address=primary_mac,
+                    connected_device=";".join(macs) if len(macs) > 1 else primary_mac
+                )
+                if primary_mac:
+                    upsert_connected_device(
+                        switch_name=hostname or ip,
+                        port=p_name,
+                        vlan=p_info.get("vlan", "1"),
+                        mac_address=primary_mac
+                    )
+
+            # 4. VLANs
             vlan_raw = net.send_command("show vlan brief", read_timeout=15)
             vlans = parse_vlans(vlan_raw)
             for v_id, v_data in vlans.items():
@@ -87,7 +234,7 @@ def query_single_switch(sw_dict, settings, log_callback=None):
                     ports=v_data["ports"]
                 )
 
-            if log_callback: log_callback(f"  ✅ Completed collection for {hostname} ({ip})")
+            if log_callback: log_callback(f"  ✅ Completed collection for {hostname} ({ip}) - Ports: {ports_up}/{ports_total} Up")
             return True
     except Exception as e:
         if log_callback: log_callback(f"  ❌ Error collecting from {ip}: {str(e)}")
@@ -98,7 +245,7 @@ def run_full_collection(log_callback=None):
     switches = get_switches()
 
     if not switches:
-        if log_callback: log_callback("⚠️ No switches found in database! Run Initial Subnet Scan or CDP Crawler first.")
+        if log_callback: log_callback("⚠️ No switches found in database! Run Initial Subnet Scan first.")
         return
 
     if log_callback:
