@@ -99,6 +99,95 @@ def check_errors(net_connect, port: str) -> str:
     return net_connect.send_command(cmd)
 
 
+import re
+
+
+def parse_tdr_pairs(tdr_output: str) -> Dict[str, Dict[str, str]]:
+    """استخراج وضعیت زوج‌سیم‌ها از خروجی TDR"""
+    pairs_data = {}
+    pattern = re.compile(
+        r'(Pair [A-D])\s+(\d+(?:\s*\+/-\s*\d+)?\s*(?:meters|m)?)\s+(?:(Pair [A-D]|N/A|\S+)\s+)?(Normal|Open|Short|Impedance Mismatch|Unknown|\w+)',
+        re.IGNORECASE
+    )
+    for line in tdr_output.splitlines():
+        match = pattern.search(line)
+        if match:
+            pair_name = match.group(1).title()
+            length_str = match.group(2).strip()
+            remote_pair = match.group(3) if match.group(3) else "-"
+            status = match.group(4).capitalize()
+            pairs_data[pair_name] = {
+                "length": length_str,
+                "remote": remote_pair,
+                "status": status
+            }
+    return pairs_data
+
+
+def parse_error_counters(error_output: str) -> Dict[str, int]:
+    """استخراج خطاهای CRC و Input/Output errors"""
+    data = {"crc": 0, "input_errors": 0, "output_errors": 0, "collisions": 0}
+    crc_m = re.search(r'(\d+)\s+CRC', error_output, re.IGNORECASE)
+    if crc_m:
+        data["crc"] = int(crc_m.group(1))
+    in_m = re.search(r'(\d+)\s+input errors', error_output, re.IGNORECASE)
+    if in_m:
+        data["input_errors"] = int(in_m.group(1))
+    out_m = re.search(r'(\d+)\s+output errors', error_output, re.IGNORECASE)
+    if out_m:
+        data["output_errors"] = int(out_m.group(1))
+    col_m = re.search(r'(\d+)\s+collisions', error_output, re.IGNORECASE)
+    if col_m:
+        data["collisions"] = int(col_m.group(1))
+    return data
+
+
+def print_executive_summary(p1_connected: bool, p2_connected: bool, tdr_p1: str, errors_p1: str, errors_p2: str):
+    """رسم جعبه خلاصه و ارزیابی نهایی کابل شبکه"""
+    pairs = parse_tdr_pairs(tdr_p1)
+    err1 = parse_error_counters(errors_p1)
+    err2 = parse_error_counters(errors_p2)
+    total_crc = err1["crc"] + err2["crc"]
+
+    print("\n" + "═" * 68)
+    print("\u200F📋 خلاصه نتایج و ارزیابی نهایی سلامت کابل (Executive Summary):")
+    print("═" * 68)
+
+    # ۱. وضعیت جفت‌سیم‌ها
+    pair_a = pairs.get("Pair A", {}).get("status", "Unknown")
+    pair_b = pairs.get("Pair B", {}).get("status", "Unknown")
+    pair_c = pairs.get("Pair C", {}).get("status", "Unknown")
+    pair_d = pairs.get("Pair D", {}).get("status", "Unknown")
+
+    print("\u200F🔹 وضعیت زوج‌سیم‌ها:")
+    print(f"   • Pair A (1-2): {pair_a:<10} | Pair B (3-6): {pair_b:<10}")
+    print(f"   • Pair C (4-5): {pair_c:<10} | Pair D (7-8): {pair_d:<10}")
+
+    # طول کابل
+    cable_length = pairs.get("Pair A", {}).get("length", "نامشخص")
+    print(f"\n\u200F🔹 طول تخمینی کابل: {cable_length}")
+
+    # نویز و خطا
+    if total_crc == 0:
+        print("\u200F🔹 خطای نویز فیزیکی (CRC): 0 (عالی - بدون نویز)")
+    else:
+        print(f"\u200F🔹 خطای نویز فیزیکی (CRC): {total_crc} ⚠️ (احتمال تداخل الکترومغناطیسی یا سربندی ضعیف)")
+
+    # ارزیابی نهایی (Verdict)
+    print("\n" + "─" * 68)
+    if pair_a == "Normal" and pair_b == "Normal" and pair_c == "Normal" and pair_d == "Normal":
+        print("\u200F🎯 وضعیت نهایی کابل: 🟢 سالم کامل (1000Mbps Gigabit Ready)")
+        print("\u200F   هر ۴ جفت‌سیم سالم بوده و حداکثر پهنای باند گیگابیت در دسترس است.")
+    elif pair_a == "Normal" and pair_b == "Normal" and (pair_c in ["Open", "Short"] or pair_d in ["Open", "Short"]):
+        print("\u200F🎯 وضعیت نهایی کابل: 🟡 کابل دو زوج یا قطع در C/D (محدود به 100Mbps)")
+        print("\u200F   جفت‌های دیتا سالم‌اند اما زوج‌های ۴-۵ یا ۷-۸ متصل نیستند (سرعت فراتر از ۱۰۰ مگابیت نمی‌رود).")
+    elif not p1_connected and not p2_connected and pair_a in ["Open", "Unknown"]:
+        print("\u200F🎯 وضعیت نهایی کابل: 🔴 قطع کامل یا کابل وصل نیست (Disconnected / Faulty)")
+    else:
+        print("\u200F🎯 وضعیت نهایی کابل: ⚠️ نیاز به بررسی سوکت و سربندی (سیم‌بندی ناقص یا ناپایدار)")
+    print("═" * 68)
+
+
 def main():
     print("=" * 68)
     print("\u200F🧪 ابزار تست سخت‌افزاری کابل شبکه (IT-MIZ Cable Bench)")
@@ -117,8 +206,14 @@ def main():
     # ۱. بررسی اتصال فیزیکی اولیه
     print("─" * 68)
     print("\u200F📊 [مرحله ۱] وضعیت اتصال فیزیکی دو پورت:")
-    status_raw = conn.send_command("show interfaces status | include Gi1/0/1 |Gi1/0/2 ")
-    print(status_raw)
+    raw_status = conn.send_command("show interfaces status")
+    # فیلتر دقیق فقط برای پورت‌های بنچ‌مارک (یا پورت‌های اختصاص یافته به VLAN 998)
+    bench_short_ports = ("Gi1/0/1 ", "Gi1/0/2 ")
+    filtered_lines = [
+        line for line in raw_status.splitlines()
+        if line.startswith("Port") or any(line.startswith(p) for p in bench_short_ports)
+    ]
+    print("\n".join(filtered_lines))
 
     is_p1_connected = "connected" in conn.send_command(f"show interfaces {BENCH_PORT_1} status")
     is_p2_connected = "connected" in conn.send_command(f"show interfaces {BENCH_PORT_2} status")
@@ -145,9 +240,11 @@ def main():
     print("\n" + "─" * 68)
     print("\u200F⚠️ [مرحله ۴] بررسی خطاهای فیزیکی و شمارنده نویز CRC:")
     print(f"\u200F• پورت اول ({BENCH_PORT_1}):")
-    print(check_errors(conn, BENCH_PORT_1))
+    err_p1 = check_errors(conn, BENCH_PORT_1)
+    print(err_p1)
     print(f"\n\u200F• پورت دوم ({BENCH_PORT_2}):")
-    print(check_errors(conn, BENCH_PORT_2))
+    err_p2 = check_errors(conn, BENCH_PORT_2)
+    print(err_p2)
 
     # ۵. شمارنده بسته‌ها
     print("\n" + "─" * 68)
@@ -158,6 +255,9 @@ def main():
     print(f"Port 2:\n{p2_pkts}")
 
     conn.disconnect()
+
+    # ۶. نمایش باکس خلاصه وضعیت و ارزیابی نهایی
+    print_executive_summary(is_p1_connected, is_p2_connected, tdr_1, err_p1, err_p2)
 
     print("\n" + "=" * 68)
     print("✅ ارزیابی بنچ‌مارک به پایان رسید.")
