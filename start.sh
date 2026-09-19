@@ -15,7 +15,7 @@ if [ -f ".env" ]; then
     ENV_PORT=$(grep -E '^\s*PORT\s*=' .env | cut -d '=' -f2 | tr -d ' "\r\n' || echo "")
 fi
 
-PORT="${PORT:-${ENV_PORT:-29999}}"
+PORT="${PORT:-${ENV_PORT:-23458}}"
 NO_BROWSER=0
 
 # مسیرهای PID و فایل استارت‌آپ خودکار
@@ -558,7 +558,7 @@ case "$ACTION" in
     help|--help|-h)
         echo "Simban Help:"
         echo "  ./start.sh                           Interactive TUI Menu"
-        echo "  ./start.sh start [PORT]              Start Foreground (Default: 29999)"
+        echo "  ./start.sh start [PORT]              Start Foreground (Default: 23458)"
         echo "  ./start.sh start-bg                  Start Background Service"
         echo "  ./start.sh stop                      Stop Background Service"
         echo "  ./start.sh status                    Check Background Status (Exit Code 0=Active, 1=Inactive)"

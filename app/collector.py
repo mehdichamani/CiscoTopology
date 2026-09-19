@@ -2,6 +2,7 @@ import re
 import concurrent.futures
 from datetime import datetime, timezone
 from netmiko import ConnectHandler
+from app.config import build_netmiko_device
 from app.db import (
     get_settings, get_switches, upsert_switch, upsert_vlan, 
     upsert_switch_port, clear_switch_ports, update_switch_port_counts,
@@ -130,25 +131,15 @@ def parse_mac_address_table(output):
 
 def query_single_switch(sw_dict, settings, log_callback=None):
     ip = sw_dict["ip"]
-    username = settings.get("username", "")
-    password = settings.get("password", "")
-    device_type = settings.get("device_type", "cisco_ios_telnet")
-
-    device_dict = {
-        "device_type": device_type,
-        "host": ip,
-        "username": username,
-        "password": password,
-        "secret": password,
-        "conn_timeout": 10,
-    }
+    device_dict = build_netmiko_device(ip, settings)
 
     try:
         if log_callback: log_callback(f"📥 Querying switch data from {ip}...")
         with ConnectHandler(**device_dict) as net:
             net.enable()
             prompt = net.find_prompt()
-            hostname = prompt.strip("#>")
+            hostname = prompt.strip("#>").lower()
+
 
             # 1. Version & Hardware Info
             ver_raw = net.send_command("show version", read_timeout=15)

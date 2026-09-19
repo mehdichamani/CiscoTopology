@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Simban Native Manager (PowerShell TUI - Clean and Dual Language)
@@ -8,7 +8,7 @@
 .EXAMPLE
     .\start.ps1
 .EXAMPLE
-    .\start.ps1 -Action start -Port 29999
+    .\start.ps1 -Action start -Port 23458
 #>
 
 [CmdletBinding()]
@@ -18,7 +18,7 @@ param(
     [string]$Action = "",
 
     [Parameter(Position=1)]
-    [int]$Port = 29999,
+    [int]$Port = 23458,
 
     [switch]$NoBrowser,
     [switch]$Reload
@@ -557,7 +557,7 @@ switch ($Action.ToLower()) {
     "help"            {
         Write-Host "Simban Help:"
         Write-Host "  .\start.ps1                          Interactive TUI Menu"
-        Write-Host "  .\start.ps1 -Action start -Port 29999 Start Foreground"
+        Write-Host "  .\start.ps1 -Action start -Port 23458 Start Foreground"
         Write-Host "  .\start.ps1 -Action start-bg         Start Background Service"
         Write-Host "  .\start.ps1 -Action stop             Stop Background Service"
         Write-Host "  .\start.ps1 -Action status           Check Background Status (Exit Code 0=Active, 1=Inactive)"

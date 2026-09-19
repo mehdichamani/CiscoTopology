@@ -28,7 +28,7 @@ python scripts/test_cable.py
 ### ۲. حالت مستقیم (Direct CLI Execution)
 در صورت تمایل به تست سریع یا اسکریپت‌نویسی خودکار:
 ```powershell
-python scripts/test_cable.py 192.168.30.13 GigabitEthernet1/0/5
+python scripts/test_cable.py 192.168.30.12 GigabitEthernet1/0/5
 ```
 
 ---

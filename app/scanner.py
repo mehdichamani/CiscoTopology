@@ -5,6 +5,7 @@ import re
 import collections
 import subprocess
 from netmiko import ConnectHandler
+from app.config import build_netmiko_device
 from app.db import get_settings, get_switches, upsert_switch, upsert_link, clear_links_for_switch, update_switch_status
 
 def log(msg, callback=None):
@@ -204,20 +205,13 @@ def crawl_cdp(log_callback=None):
 
         log(f"📡 Connecting to switch at IP: {ip}...", log_callback)
 
-        device_dict = {
-            "device_type": device_type,
-            "host": ip,
-            "username": username,
-            "password": password,
-            "secret": password,
-            "conn_timeout": 10,
-        }
+        device_dict = build_netmiko_device(ip, settings)
 
         try:
             with ConnectHandler(**device_dict) as net:
                 net.enable()
                 prompt = net.find_prompt()
-                hostname = prompt.strip("#>")
+                hostname = prompt.strip("#>").lower()
 
                 log(f"  ✅ Connected: {hostname}", log_callback)
                 crawled_switches.add(ip)

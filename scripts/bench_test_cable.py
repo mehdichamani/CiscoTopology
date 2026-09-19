@@ -29,7 +29,7 @@ load_dotenv(ROOT_DIR / ".env")
 from netmiko import ConnectHandler
 
 # تنظیمات پیش‌فرض بنچ‌مارک تست
-BENCH_SWITCH_IP = os.getenv("BENCH_SWITCH_IP", "192.168.30.13")
+BENCH_SWITCH_IP = os.getenv("BENCH_SWITCH_IP", "192.168.30.12")
 BENCH_PORT_1 = "GigabitEthernet1/0/1"
 BENCH_PORT_2 = "GigabitEthernet1/0/2"
 

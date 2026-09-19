@@ -24,7 +24,7 @@
 .\start.ps1
 
 # یا اجرای مستقیم در پس‌زمینه
-.\start.ps1 -Action start-bg -Port 29999
+.\start.ps1 -Action start-bg -Port 23458
 ```
 
 ### لینوکس و مک (Bash):
@@ -34,7 +34,7 @@ chmod +x start.sh
 ```
 
 داشبورد به طور پیش‌فرض بر روی آدرس زیر در دسترس خواهد بود:  
-`http://localhost:29999` (یا `http://127.0.0.1:29999`)
+`http://localhost:23458` (یا `http://127.0.0.1:23458`)
 
 ---
 
