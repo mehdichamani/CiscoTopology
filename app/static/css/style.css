@@ -146,7 +146,16 @@ html[dir="ltr"] table { text-align: left; }
     gap: 12px;
 }
 
-/* Anthropic 4-spoke radial-spike mark logo */
+/* Brand logo */
+.brand-logo-img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: contain;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 .brand-spike-icon {
     width: 24px;
     height: 24px;
