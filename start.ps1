@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Simban Native Manager (PowerShell TUI - Clean and Dual Language)
@@ -14,14 +14,15 @@
 [CmdletBinding()]
 param(
     [Parameter(Position=0)]
-    [ValidateSet("start", "start-bg", "stop", "status", "enable-startup", "disable-startup", "install", "update", "check", "reset-data", "clean", "help", "")]
+    [ValidateSet("start", "start-bg", "stop", "restart", "status", "enable-startup", "disable-startup", "install", "update", "check", "reset-data", "clean", "help", "")]
     [string]$Action = "",
 
     [Parameter(Position=1)]
     [int]$Port = 23458,
 
     [switch]$NoBrowser,
-    [switch]$Reload
+    [switch]$Reload,
+    [switch]$InParentSession
 )
 
 # تنظیم انکودینگ خروجی ترمینال به UTF-8
@@ -50,30 +51,31 @@ $StartupShortcut = Join-Path $StartupFolder "Simban.lnk"
 
 # توابع چاپ دو زبانه و شکیل با همترازی تمیز
 function Write-LogInfo ($label, $en, $fa) {
-    Write-Host "  [$label] " -NoNewline -ForegroundColor Cyan
+    Write-Host "  ● " -NoNewline -ForegroundColor Cyan
+    Write-Host "[$label] " -NoNewline -ForegroundColor DarkCyan
     Write-Host "$en " -NoNewline -ForegroundColor White
-    Write-Host "| $fa" -ForegroundColor Gray
+    if ($fa) { Write-Host "│ $fa" -ForegroundColor DarkGray } else { Write-Host "" }
 }
 
 function Write-LogOk ($label, $en, $fa) {
-    Write-Host "  [OK] " -NoNewline -ForegroundColor Green
-    Write-Host "${label}: " -NoNewline -ForegroundColor White
+    Write-Host "  ● " -NoNewline -ForegroundColor Green
+    Write-Host "[$label] " -NoNewline -ForegroundColor DarkCyan
     Write-Host "$en " -NoNewline -ForegroundColor White
-    Write-Host "| $fa" -ForegroundColor Gray
+    if ($fa) { Write-Host "│ $fa" -ForegroundColor DarkGray } else { Write-Host "" }
 }
 
 function Write-LogWarn ($label, $en, $fa) {
-    Write-Host "  [WARN] " -NoNewline -ForegroundColor Yellow
-    Write-Host "${label}: " -NoNewline -ForegroundColor White
+    Write-Host "  ● " -NoNewline -ForegroundColor Yellow
+    Write-Host "[WARN: $label] " -NoNewline -ForegroundColor Yellow
     Write-Host "$en " -NoNewline -ForegroundColor White
-    Write-Host "| $fa" -ForegroundColor Gray
+    if ($fa) { Write-Host "│ $fa" -ForegroundColor DarkGray } else { Write-Host "" }
 }
 
 function Write-LogErr ($label, $en, $fa) {
-    Write-Host "  [ERROR] " -NoNewline -ForegroundColor Red
-    Write-Host "${label}: " -NoNewline -ForegroundColor White
+    Write-Host "  ● " -NoNewline -ForegroundColor Red
+    Write-Host "[ERROR: $label] " -NoNewline -ForegroundColor Red
     Write-Host "$en " -NoNewline -ForegroundColor White
-    Write-Host "| $fa" -ForegroundColor Gray
+    if ($fa) { Write-Host "│ $fa" -ForegroundColor DarkGray } else { Write-Host "" }
 }
 
 # باز کردن خودکار مرورگر در صورت عدم غیرفعال بودن
@@ -199,27 +201,27 @@ function Get-ActiveServerProcess {
 function Get-ServerStatus {
     $webProc = Get-ActiveServerProcess
 
+    $hasActive = $false
+    $srvTxt = if ($webProc) { "RUNNING (PID: $($webProc.Id))" } else { "STOPPED" }
+    $srvCol = if ($webProc) { "Green" } else { "DarkGray" }
+
+    Write-Host "  ● " -NoNewline -ForegroundColor $srvCol
+    Write-Host "Web Service: " -NoNewline -ForegroundColor White
+    Write-Host "$srvTxt" -ForegroundColor $srvCol
+
     if ($webProc) {
-        Write-Host "  [OK] " -NoNewline -ForegroundColor Green
-        Write-Host "Web Service: " -NoNewline -ForegroundColor White
-        Write-Host "ACTIVE (PID: $($webProc.Id)) " -NoNewline -ForegroundColor Green
-        Write-Host "| سرویس وب فعال است" -ForegroundColor Gray
-        Write-Host "       Panel URL: " -NoNewline -ForegroundColor White
+        Write-Host "  → URL: " -NoNewline -ForegroundColor DarkGray
         Write-Host "http://localhost:$Port" -ForegroundColor Cyan
-        return $true
-    } else {
-        Write-Host "  [INFO] " -NoNewline -ForegroundColor Yellow
-        Write-Host "Web Service: " -NoNewline -ForegroundColor White
-        Write-Host "INACTIVE " -NoNewline -ForegroundColor Yellow
-        Write-Host "| سرویس وب فعال نیست" -ForegroundColor Gray
-        return $false
+        $hasActive = $true
     }
+
+    return $hasActive
 }
 
 function Test-HealthCheck {
-    Write-Host "`n══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-    Write-Host "  System Health Check | پایش سلامت سیستم سیم‌بان (Simban)" -ForegroundColor Cyan
-    Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "`n  ┌── System Health Check ───────────────────────────────────────────┐" -ForegroundColor Cyan
+    Write-Host "  │ Simban Cisco Switch Management Verification                      │" -ForegroundColor Cyan
+    Write-Host "  └──────────────────────────────────────────────────────────────────┘" -ForegroundColor Cyan
     
     # Python
     $py = Get-Command python -ErrorAction SilentlyContinue
@@ -270,17 +272,17 @@ function Test-HealthCheck {
         Write-LogWarn "Data Dir" "Missing (data/)" "دایرکتوری داده موجود نیست"
     }
 
-    Write-Host "──────────────────────────────────────────────────────────────────────" -ForegroundColor DarkCyan
-    Write-Host '  Service & System Status | وضعیت سرویس‌ها:' -ForegroundColor White
+    Write-Host "  ────────────────────────────────────────────────────────────────────" -ForegroundColor DarkCyan
+    Write-Host '  Service Status:' -ForegroundColor White
     Get-ServerStatus | Out-Null
 
-    Write-Host "  Windows Auto-Start: " -NoNewline -ForegroundColor White
+    Write-Host "  Windows Auto-Start: " -NoNewline -ForegroundColor DarkGray
     if (Test-Path $StartupShortcut) {
-        Write-Host "ENABLED | فعال است" -ForegroundColor Green
+        Write-Host "ENABLED" -ForegroundColor Green
     } else {
-        Write-Host "DISABLED | غیرفعال است" -ForegroundColor Yellow
+        Write-Host "DISABLED" -ForegroundColor DarkGray
     }
-    Write-Host "══════════════════════════════════════════════════════════════════════`n" -ForegroundColor Cyan
+    Write-Host ""
 }
 
 # راه‌اندازی سرویس وب به صورت Foreground (با پنجره کنسول)
@@ -291,11 +293,10 @@ function Start-Server {
     }
     Ensure-EnvFiles
 
-    Write-Host "`n══════════════════════════════════════════════════════════════════════" -ForegroundColor Green
-    Write-Host "  Simban Server Running (FastAPI & Cisco Collector Active)" -ForegroundColor Green
-    Write-Host "  Panel URL: http://localhost:$Port" -ForegroundColor Cyan
-    Write-Host "  Press Ctrl+C to Stop Server" -ForegroundColor Yellow
-    Write-Host "══════════════════════════════════════════════════════════════════════`n" -ForegroundColor Green
+    Write-Host "`n  ┌── Simban Console ────────────────────────────────────────────────┐" -ForegroundColor Green
+    Write-Host "  │ Panel URL: http://localhost:$Port                                  │" -ForegroundColor Cyan
+    Write-Host "  │ Press Ctrl+C to stop all services                                │" -ForegroundColor DarkGray
+    Write-Host "  └──────────────────────────────────────────────────────────────────┘`n" -ForegroundColor Green
 
     Open-BrowserUrl "http://localhost:$Port"
 
@@ -323,11 +324,17 @@ function Start-ServerBackground {
         return
     }
 
+    if (-not (Test-Path "logs")) {
+        New-Item -ItemType Directory -Path "logs" -Force | Out-Null
+    }
+    $logOut = Join-Path $ScriptDir "logs\simban-bg.out.log"
+    $logErr = Join-Path $ScriptDir "logs\simban-bg.err.log"
+
     $pythonPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
     Write-LogInfo "Server" "Launching Simban background service..." "در حال راه‌اندازی پس‌زمینه سرویس وب..."
     
     $argList = "-m uvicorn app.main:app --host 0.0.0.0 --port $Port"
-    $webProc = Start-Process -FilePath $pythonPath -ArgumentList $argList -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru
+    $webProc = Start-Process -FilePath $pythonPath -ArgumentList $argList -WorkingDirectory $ScriptDir -WindowStyle Hidden -RedirectStandardOutput $logOut -RedirectStandardError $logErr -PassThru
 
     if ($webProc -and -not $webProc.HasExited) {
         $webProc.Id | Out-File -FilePath $WebPidFile -Encoding utf8
@@ -339,6 +346,13 @@ function Start-ServerBackground {
     Write-Host "  Panel URL: http://localhost:$Port" -ForegroundColor Green
     Write-Host "  Note: You can safely close this terminal." -ForegroundColor Yellow
     Open-BrowserUrl "http://localhost:$Port"
+}
+
+function Restart-Server {
+    Write-LogInfo "Server" "Restarting Simban background service..." "در حال راه‌اندازی مجدد سرویس پس‌زمینه سیم‌بان..."
+    Stop-Server
+    Start-Sleep -Seconds 1
+    Start-ServerBackground
 }
 
 # توقف سرویس پس‌زمینه
@@ -371,20 +385,19 @@ function Stop-Server {
         Remove-Item $LegacyWebPidFile -Force -ErrorAction SilentlyContinue
     }
 
-    # بررسی فرآیندهای مرتبط در صورت باقی‌ماندن
-    $pyProcs = Get-Process -Name "python" -ErrorAction SilentlyContinue
-    if ($pyProcs) {
-        foreach ($p in $pyProcs) {
-            try {
-                $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($p.Id)").CommandLine
-                if ($cmdLine -like "*app.main:app*") {
-                    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-                    Write-LogOk "Web" "Terminated leftover Simban process (PID $($p.Id))" "پروسه وب متوقف شد"
+    # اطمینان نهایی: بررسی و توقف پردازنده متصل به پورت در صورت باقی ماندن
+    try {
+        $net = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        if ($net) {
+            foreach ($conn in $net) {
+                if ($conn.OwningProcess) {
+                    Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+                    Write-LogOk "Web" "Freed port $Port (PID $($conn.OwningProcess))" "پورت $Port آزاد شد"
                     $stopped = $true
                 }
-            } catch {}
+            }
         }
-    }
+    } catch {}
 
     if (-not $stopped) {
         Write-Host "  [INFO] No active background services found | هیچ سرویس پسزمینه‌ای فعال نبود" -ForegroundColor Yellow
@@ -450,36 +463,47 @@ function Show-Menu {
     while ($true) {
         Clear-Host
         $webProc = Get-ActiveServerProcess
-        $bgStatus = if ($webProc) { " [ACTIVE]" } else { " [INACTIVE]" }
+        $srvTxt = if ($webProc) { "RUNNING" } else { "STOPPED" }
+        $srvCol = if ($webProc) { "Green" } else { "DarkGray" }
         $hasStartup = Test-Path $StartupShortcut
-        $startupStatus = if ($hasStartup) { " [ENABLED]" } else { " [DISABLED]" }
+        $startupStatus = if ($hasStartup) { "ENABLED" } else { "DISABLED" }
+        $startupCol = if ($hasStartup) { "Green" } else { "DarkGray" }
 
-        Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host "               Simban Native Manager (TUI)" -ForegroundColor Cyan
-        Write-Host "      مدیریت و استقرار سامانه سیم‌بان | System Management" -ForegroundColor Gray
-        Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host "  [1] Start Foreground Console    | اجرای مستقیم در کنسول" -ForegroundColor White
+        $exitText = if ($InParentSession) { "    [0] Return to Suite" } else { "    [0] Exit" }
+
+        Write-Host "  ┌──────────────────────────────────────────────────────────────────┐" -ForegroundColor DarkCyan
+        Write-Host "  │ " -NoNewline -ForegroundColor DarkCyan
+        Write-Host "SIMBAN SUITE" -NoNewline -ForegroundColor Cyan
+        Write-Host "      │ Cisco Switch & Topology Management      │" -ForegroundColor DarkCyan
+        Write-Host "  ├──────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
+        Write-Host "  │ " -NoNewline -ForegroundColor DarkCyan
+        Write-Host "●" -NoNewline -ForegroundColor $srvCol
+        Write-Host " Web Service (:23458): [$srvTxt]" -NoNewline -ForegroundColor White
+        Write-Host "                                   │" -ForegroundColor DarkCyan
+        Write-Host "  ├──────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
+        Write-Host "  │ Windows Auto-Start: " -NoNewline -ForegroundColor DarkGray
+        Write-Host "$startupStatus" -NoNewline -ForegroundColor $startupCol
+        Write-Host "                                        │" -ForegroundColor DarkCyan
+        Write-Host "  └──────────────────────────────────────────────────────────────────┘" -ForegroundColor DarkCyan
+
+        Write-Host ""
+        Write-Host "  Service Control:" -ForegroundColor Cyan
+        Write-Host "    [1] Start Foreground Console     [2] Start Background Service" -ForegroundColor White
+        Write-Host "    [3] Stop Background Service      [r] Restart Background Service" -ForegroundColor White
+        Write-Host "    [4] Check Service Status" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  Maintenance & System:" -ForegroundColor Cyan
+        Write-Host "    [7] Install Dependencies         [8] Update Packages" -ForegroundColor White
+        Write-Host "    [9] System Health Check          [10] Reset All Data & DB" -ForegroundColor White
+        Write-Host ""
+        $stOpt = if ($hasStartup) { "[6] Disable Auto-Start" } else { "[5] Enable Auto-Start" }
+        Write-Host "  General:" -ForegroundColor DarkGray
+        Write-Host "    $stOpt      [f] Refresh Status          $exitText" -ForegroundColor DarkGray
+        Write-Host "  ────────────────────────────────────────────────────────────────────" -ForegroundColor DarkCyan
         
-        Write-Host "  [2] Start Background Service   | اجرای سرویس پس‌زمینه" -NoNewline -ForegroundColor White
-        if ($webProc) { Write-Host "$bgStatus" -ForegroundColor Green } else { Write-Host "$bgStatus" -ForegroundColor DarkGray }
+        $choice = Read-Host "  Choice"
 
-        Write-Host "  [3] Stop Background Service    | توقف سرویس پس‌زمینه" -ForegroundColor White
-        Write-Host "  [4] Check Service Status       | مشاهده وضعیت سرویس" -ForegroundColor White
-        
-        Write-Host "  [5] Enable Windows Startup     | فعالسازی اجرا خودکار" -NoNewline -ForegroundColor White
-        if ($hasStartup) { Write-Host "$startupStatus" -ForegroundColor Green } else { Write-Host "$startupStatus" -ForegroundColor DarkGray }
-
-        Write-Host "  [6] Disable Windows Startup    | غیرفعالسازی اجرا خودکار" -ForegroundColor White
-        Write-Host "  [7] Full Setup and Install     | نصب و پیکربندی اولیه" -ForegroundColor White
-        Write-Host "  [8] Update Packages            | بهروزرسانی بسته‌ها" -ForegroundColor White
-        Write-Host "  [9] System Health Check        | بررسی سلامت سیستم" -ForegroundColor White
-        Write-Host "  [10] Reset All Data & DB       | پاکسازی و بازنشانی کامل داده‌ها" -ForegroundColor Red
-        Write-Host "  [0] Exit                       | خروج" -ForegroundColor White
-        Write-Host "══════════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        
-        $choice = Read-Host "Select Option [0-10] | انتخاب گزینه"
-
-        switch ($choice) {
+        switch ($choice.ToLower()) {
             "1" { Start-Server; break }
             "2" {
                 Start-ServerBackground
@@ -488,6 +512,11 @@ function Show-Menu {
             }
             "3" {
                 Stop-Server
+                Read-Host "`nPress Enter to return | جهت بازگشت کلید Enter را بزنید..."
+                break
+            }
+            "r" {
+                Restart-Server
                 Read-Host "`nPress Enter to return | جهت بازگشت کلید Enter را بزنید..."
                 break
             }
@@ -527,8 +556,13 @@ function Show-Menu {
                 Read-Host "`nPress Enter to return | جهت بازگشت کلید Enter را بزنید..."
                 break
             }
+            "f" {
+                # رفرش وضعیت منو
+                break
+            }
             "0" {
-                Write-Host "Goodbye! | خداحافظ!" -ForegroundColor Green
+                $byeText = if ($InParentSession) { "Returning to Boomban Suite... | در حال بازگشت به بوم‌بان..." } else { "Goodbye! | خداحافظ!" }
+                Write-Host "$byeText" -ForegroundColor Green
                 return
             }
             default {
@@ -543,6 +577,7 @@ switch ($Action.ToLower()) {
     "start"           { Start-Server }
     "start-bg"        { Start-ServerBackground }
     "stop"            { Stop-Server }
+    "restart"         { Restart-Server }
     "status"          {
         $isActive = Get-ServerStatus
         if ($isActive) { exit 0 } else { exit 1 }
@@ -560,6 +595,7 @@ switch ($Action.ToLower()) {
         Write-Host "  .\start.ps1 -Action start -Port 23458 Start Foreground"
         Write-Host "  .\start.ps1 -Action start-bg         Start Background Service"
         Write-Host "  .\start.ps1 -Action stop             Stop Background Service"
+        Write-Host "  .\start.ps1 -Action restart          Restart Background Service"
         Write-Host "  .\start.ps1 -Action status           Check Background Status (Exit Code 0=Active, 1=Inactive)"
         Write-Host "  .\start.ps1 -Action enable-startup   Enable Auto-Start"
         Write-Host "  .\start.ps1 -Action disable-startup  Disable Auto-Start"
