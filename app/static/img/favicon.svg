@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="simban-sm-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <filter id="glow-simban-sm" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#7c3aed" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+  <!-- Background Dark Container -->
+  <rect width="64" height="64" rx="16" fill="#170c28"/>
+  
+  <!-- Circular Badge & Switching Arrows Node (Exact match to Boomban Node) -->
+  <g filter="url(#glow-simban-sm)">
+    <!-- Outer Node Ring -->
+    <circle cx="32" cy="32" r="22" fill="#170c28" stroke="#7c3aed" stroke-width="2.5"/>
+    <circle cx="32" cy="32" r="18" fill="url(#simban-sm-grad)"/>
+    
+    <!-- Switch Data Arrows (Bidirectional Routing) -->
+    <!-- Top Arrow Right -->
+    <path d="M23 28H41M41 28L35 24M41 28L35 32" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Bottom Arrow Left -->
+    <path d="M41 36H23M23 36L29 32M23 36L29 40" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
