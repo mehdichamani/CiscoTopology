@@ -201,14 +201,14 @@ function loadSwitches() {
                 const lastSeenText = s.last_seen ? `<small style="font-family:monospace;">${s.last_seen.replace('T', ' ').substring(0, 19)}</small>` : `<span style="color:var(--text-subtle);">-</span>`;
 
                 tr.innerHTML = `
-                    <td><code>${s.ip}</code></td>
-                    <td><strong>${s.hostname || 'N/A'}</strong></td>
-                    <td>${s.model || 'N/A'}</td>
-                    <td><span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></td>
-                    <td>${latencyText}</td>
-                    <td>${portsText}</td>
-                    <td>${lastSeenText}</td>
-                    <td>
+                    <td data-label="${t('ipAddress')}"><code>${s.ip}</code></td>
+                    <td data-label="${t('hostname')}"><strong>${s.hostname || 'N/A'}</strong></td>
+                    <td data-label="${t('model')}">${s.model || 'N/A'}</td>
+                    <td data-label="${t('status')}"><span class="badge-pill ${badgeClass}">${badgeIcon} ${t(isOnline ? 'online' : 'offline')}</span></td>
+                    <td data-label="${t('latency')}">${latencyText}</td>
+                    <td data-label="${t('ports')}">${portsText}</td>
+                    <td data-label="${t('lastSeen')}">${lastSeenText}</td>
+                    <td data-label="${t('actions')}" class="table-actions-cell">
                         <button class="btn btn-sm btn-secondary" onclick="openSwitchDetails('${s.ip}')">${t('details')}</button>
                         <a href="/terminal/${s.ip}" target="_blank" class="btn btn-sm btn-primary" style="margin-inline-start:4px;">${t('terminal')}</a>
                     </td>
@@ -448,6 +448,7 @@ function saveSetup(event) {
     const payload = {
         subnet: document.getElementById('wiz-subnet').value,
         seed_ips: document.getElementById('wiz-seed').value,
+        excluded_ips: document.getElementById('wiz-excluded') ? document.getElementById('wiz-excluded').value : '',
         username: document.getElementById('wiz-user').value,
         password: document.getElementById('wiz-pass').value,
         device_type: document.getElementById('wiz-type').value

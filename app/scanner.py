@@ -6,7 +6,10 @@ import collections
 import subprocess
 from netmiko import ConnectHandler
 from app.config import build_netmiko_device
-from app.db import get_settings, get_switches, upsert_switch, upsert_link, clear_links_for_switch, update_switch_status
+from app.db import (
+    get_settings, get_switches, upsert_switch, upsert_link, 
+    clear_links_for_switch, update_switch_status, get_excluded_ips_set, delete_switch
+)
 
 def log(msg, callback=None):
     if callback:
@@ -32,6 +35,67 @@ def probe_port(ip, ports=(23, 22), timeout=0.8):
         except Exception:
             pass
     return None
+
+def verify_cisco_banner_or_prompt(ip, port=23, timeout=1.5):
+    """
+    Lightweight banner and prompt probe to distinguish Cisco IOS devices
+    from non-Cisco devices (e.g. MikroTik RouterOS, Ubiquiti AirOS radios).
+    Returns (is_cisco: bool, detected_banner_info: str)
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((str(ip), port))
+        
+        banner_buf = b""
+        if port == 23:
+            # For Telnet: read initial banner / IAC negotiation
+            try:
+                data = s.recv(1024)
+                banner_buf += data
+                # Send CRLF to trigger prompt if quiet
+                s.sendall(b"\r\n")
+                data2 = s.recv(1024)
+                banner_buf += data2
+            except Exception:
+                pass
+        elif port == 22:
+            # For SSH: read SSH version string (e.g. SSH-2.0-Cisco-1.25)
+            try:
+                data = s.recv(512)
+                banner_buf += data
+            except Exception:
+                pass
+
+        s.close()
+        banner_text = banner_buf.decode('utf-8', errors='ignore').lower()
+
+        # Non-Cisco signatures (Radios, Mikrotik, Ubiquiti, Linux servers)
+        non_cisco_signatures = [
+            "mikrotik", "routeros", "ubiquiti", "airos", "airmax", "cambium",
+            "mimosa", "openwrt", "dropbear", "debian", "ubuntu", "raspbian"
+        ]
+        for sig in non_cisco_signatures:
+            if sig in banner_text:
+                return False, f"Non-Cisco signature detected: {sig}"
+
+        # Positive Cisco signatures
+        cisco_signatures = ["cisco", "catalyst", "ios", "c3750", "c2960", "c3560", "c9200", "c9300", "c3850", "c2950"]
+        for sig in cisco_signatures:
+            if sig in banner_text:
+                return True, f"Cisco signature detected: {sig}"
+
+        # If banner is standard Cisco switch login prompt
+        if "user access verification" in banner_text or "cisco" in banner_text:
+            return True, "Standard Cisco login prompt"
+
+        if ("password:" in banner_text or "username:" in banner_text) and not any(r in banner_text for r in ["login:", "routeros", "airmax"]):
+            # Also check if prompt ends with '>' or '#' after CRLF
+            return True, "Cisco login prompt"
+
+        return False, "Unknown non-Cisco banner/handshake"
+    except Exception as e:
+        return False, str(e)
 
 import time
 from datetime import datetime, timezone
@@ -62,14 +126,25 @@ def check_single_switch_status(sw_ip, timeout=1.0):
 
 def check_all_switches_status(log_callback=None):
     switches = get_switches()
-    if not switches:
+    excluded_ips = get_excluded_ips_set()
+
+    # Automatically prune any previously registered switch that is now in excluded_ips
+    active_switches = []
+    for sw in switches:
+        if sw["ip"] in excluded_ips:
+            log(f"🧹 Removing excluded IP {sw['ip']} from active switches...", log_callback)
+            delete_switch(sw["ip"])
+        else:
+            active_switches.append(sw)
+
+    if not active_switches:
         log("ℹ️ No switches in database to check status.", log_callback)
         return {}
 
-    log(f"💓 Checking online status for {len(switches)} switch(es) in database...", log_callback)
+    log(f"💓 Checking online status for {len(active_switches)} switch(es) in database...", log_callback)
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        future_to_sw = {executor.submit(check_single_switch_status, sw["ip"]): sw for sw in switches}
+        future_to_sw = {executor.submit(check_single_switch_status, sw["ip"]): sw for sw in active_switches}
         for future in concurrent.futures.as_completed(future_to_sw):
             sw = future_to_sw[future]
             ip = sw["ip"]
@@ -104,8 +179,12 @@ def scan_subnet(log_callback=None):
         log(f"❌ ERROR: Invalid subnet CIDR '{subnet_str}'.", log_callback)
         return []
 
-    hosts = [h for h in net.hosts()]
-    log(f"🔍 Starting multithreaded scan for {len(hosts)} IPs in {net}...", log_callback)
+    excluded_ips = get_excluded_ips_set()
+    if excluded_ips:
+        log(f"🛡️ Excluded IPs active: {', '.join(sorted(excluded_ips))}", log_callback)
+
+    hosts = [h for h in net.hosts() if str(h) not in excluded_ips]
+    log(f"🔍 Starting multithreaded scan for {len(hosts)} IPs in {net} (excluding {len(excluded_ips)} IPs)...", log_callback)
     
     discovered = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
@@ -114,11 +193,16 @@ def scan_subnet(log_callback=None):
             res = future.result()
             if res:
                 ip, port = res
-                discovered.append(ip)
-                log(f"  ✅ [Found Open Port {port}] Switch IP: {ip}", log_callback)
-                upsert_switch(ip=ip, status="online")
+                # Method 3: Validate if device looks like Cisco before registering
+                is_cisco, desc = verify_cisco_banner_or_prompt(ip, port=port)
+                if is_cisco:
+                    discovered.append(ip)
+                    log(f"  ✅ [Found Cisco Switch | Port {port}] IP: {ip} ({desc})", log_callback)
+                    upsert_switch(ip=ip, status="online")
+                else:
+                    log(f"  ⏭️ [Ignored Non-Cisco / Radio | Port {port}] IP: {ip} ({desc})", log_callback)
 
-    log(f"\n✅ Scan Complete! Discovered {len(discovered)} active switch IP(s).", log_callback)
+    log(f"\n✅ Scan Complete! Discovered {len(discovered)} active Cisco switch IP(s).", log_callback)
     return discovered
 
 def parse_cdp_detail(raw_output):

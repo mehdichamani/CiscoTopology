@@ -6,7 +6,7 @@ from app.config import build_netmiko_device
 from app.db import (
     get_settings, get_switches, upsert_switch, upsert_vlan, 
     upsert_switch_port, clear_switch_ports, update_switch_port_counts,
-    upsert_connected_device
+    upsert_connected_device, get_excluded_ips_set
 )
 
 def parse_show_version(output):
@@ -233,7 +233,9 @@ def query_single_switch(sw_dict, settings, log_callback=None):
 
 def run_full_collection(log_callback=None):
     settings = get_settings()
-    switches = get_switches()
+    all_switches = get_switches()
+    excluded_ips = get_excluded_ips_set()
+    switches = [s for s in all_switches if s["ip"] not in excluded_ips]
 
     if not switches:
         if log_callback: log_callback("⚠️ No switches found in database! Run Initial Subnet Scan first.")

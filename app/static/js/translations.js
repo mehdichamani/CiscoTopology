@@ -54,6 +54,8 @@ const TRANSLATIONS = {
         subnetHint: "رنج شبکه کلاس C یا B را وارد کنید (مانند 192.168.30.0/24).",
         seedSwitchLabel: "IP سوئیچ اصلی / Seed (اختیاری)",
         seedSwitchHint: "آدرس IP سوئیچ هسته جهت ردیابی سریع‌تر CDP.",
+        excludedIpsLabel: "آی‌پی‌های مستثنی‌شده / رادیوها (Excluded IPs)",
+        excludedIpsHint: "آدرس آی‌پی رادیوها یا دستگاه‌های غیرسیسکو را با کاما جدا کنید تا اسکن نشوند.",
         ciscoUserLabel: "نام کاربری ورود به سوئیچ",
         ciscoUserHint: "در صورت عدم نیاز خالی بگذارید",
         ciscoPassLabel: "رمز عبور ورود به سوئیچ",
@@ -84,7 +86,8 @@ const TRANSLATIONS = {
         offline: "آفلاین",
         quickActions: "عملیات سریع",
         statusCheck: "پایش وضعیت (Ping)",
-        toggleConsole: "کنسول اجرای زنده",
+        toggleConsole: "کنسول زنده",
+        appFooterText: "سامانه پایش سوییچ‌های سیسکو سیم‌بان • بخشی از مجموعه بوم‌بان (Boomban Suite)",
         closeModal: "بستن"
     },
     en: {
@@ -148,6 +151,8 @@ const TRANSLATIONS = {
         subnetHint: "Specify Class C or B subnet range (e.g. 192.168.30.0/24).",
         seedSwitchLabel: "Seed Switch IP(s) (Optional)",
         seedSwitchHint: "Core switch IP for fast CDP crawling.",
+        excludedIpsLabel: "Excluded IPs / Radios",
+        excludedIpsHint: "Comma-separated IPs of radios/non-Cisco devices to skip during scan.",
         ciscoUserLabel: "Cisco Login Username",
         ciscoUserHint: "Leave blank if not required",
         ciscoPassLabel: "Cisco Login Password",
@@ -178,7 +183,8 @@ const TRANSLATIONS = {
         fullScanSequence: "Full Scan & Collection",
         cdpCrawl: "CDP Crawl",
         statusCheck: "Status Check",
-        toggleConsole: "Live Execution Console",
+        toggleConsole: "Live Console",
+        appFooterText: "Simban Cisco Switch Intelligence • Boomban Suite",
         closeModal: "Close"
     }
 };

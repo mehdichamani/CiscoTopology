@@ -28,14 +28,15 @@
             <img src="/static/img/simban_logo.svg" alt="Simban Logo" class="brand-logo-img">
             <h1 class="brand-title">
                 <span data-i18n="brand">سیم‌بان</span>
-                <span class="brand-accent">Simban</span>
             </h1>
             <span class="brand-subtitle-badge" data-i18n="brandSubtitle">مدیریت، پایش سلامت و وب‌ترمینال سوییچ‌های سیسکو</span>
         </div>
 
         <div class="nav-controls">
-            <span class="badge-pill" data-i18n="fastApiEngine">⚡ موتور FastAPI</span>
-            <span class="badge-pill" data-i18n="sqliteDb">🗄️ دیتابیس SQLite</span>
+            <!-- Global Action Status Indicator in Navbar -->
+            <div class="nav-status-group">
+                <span id="action-status" class="status-badge status-idle" data-i18n="idleStatus">آماده به کار</span>
+            </div>
             <button class="btn btn-icon-circular" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Light/Dark Theme" aria-label="Toggle Theme">🌙</button>
             <button class="btn btn-sm btn-secondary" onclick="toggleLanguage()" id="lang-toggle-btn" title="Switch Language">🌐 EN</button>
             <button class="btn btn-sm btn-primary" onclick="openWizardModal()"><span data-i18n="settings">⚙️ تنظیمات</span></button>
@@ -45,157 +46,121 @@
     <!-- Main Container -->
     <main class="main-container">
 
-        <!-- Hero Header & Task Control Center -->
-        <section class="hero-section">
-            <div class="hero-header">
-                <div class="hero-title-group">
-                    <h2 data-i18n="brandSubtitle">مدیریت، پایش سلامت و وب‌ترمینال سوییچ‌های سیسکو</h2>
-                    <p data-i18n="settingsWizardDesc">پایش خودکار وضعیت آنلاین/آفلاین، تأخیر پینگ، پورت‌ها و دسترسی به ترمینال وب</p>
-                </div>
-                <div class="hero-quick-actions">
-                    <span class="form-hint" style="margin:0 4px;" data-i18n="quickActions">عملیات سریع:</span>
-                    <button class="btn btn-coral-pill" onclick="runAction('check_status')" data-i18n="statusCheck">💓 پایش وضعیت (Ping)</button>
-                    <button class="btn btn-coral-pill" onclick="runAction('scan')" data-i18n="taskDiscovery">🔍 اسکن ساب‌نت</button>
-                    <button class="btn btn-coral-pill" onclick="runAction('collect')" data-i18n="taskCollector">📥 بروزرسانی مشخصات و پورت‌ها</button>
-                </div>
-            </div>
-
-            <!-- Task Cards Grid -->
-            <div class="tasks-grid">
+        <!-- Task Bar (Ultra Compact) -->
+        <section class="tasks-bar-container">
+            <div class="tasks-grid tasks-compact-bar">
                 
                 <!-- Task 1: Discovery -->
-                <div class="task-card" id="card-task_discovery">
-                    <div class="task-card-header">
+                <div class="task-card task-card-inline" id="card-task_discovery">
+                    <div class="task-card-left">
                         <label class="switch-toggle" data-i18n-title="toggleDiscoveryTitle" title="فعال/غیرفعال‌سازی اسکن خودکار">
                             <input type="checkbox" id="toggle-task_discovery" onchange="toggleTask('task_discovery', this.checked)">
                             <span class="slider"></span>
                         </label>
-                        <div class="task-card-info">
-                            <h3 data-i18n="taskDiscovery">🔍 کشف دستگاه‌های جدید</h3>
-                            <p data-i18n="taskDiscoveryDesc">اسکن دوره‌ای زیرشبکه جهت یافتن سوییچ‌های سیسکو</p>
-                        </div>
+                        <span class="task-inline-title" data-i18n="taskDiscovery">🔍 کشف دستگاه‌ها</span>
+                        <span class="task-info-tooltip" data-i18n-title="taskDiscoveryDesc" title="اسکن دوره‌ای زیرشبکه جهت یافتن سوییچ‌های سیسکو">?</span>
                     </div>
-                    <div class="task-card-footer">
+                    <div class="task-card-right">
                         <span class="schedule-badge" onclick="editTaskInterval('task_discovery')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
-                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_discovery">60</span> <span data-i18n="minutes">دقیقه</span>
+                            ⏱ <span id="interval-val-task_discovery">60</span>m
                         </span>
-                        <button class="btn btn-sm btn-secondary" onclick="runAction('scan')" data-i18n="manualRun">▶ اجرای دستی</button>
+                        <button class="btn btn-xs btn-secondary" onclick="runAction('scan')" data-i18n="manualRun">▶</button>
                     </div>
                 </div>
 
                 <!-- Task 2: Switch Collector -->
-                <div class="task-card" id="card-task_collector">
-                    <div class="task-card-header">
+                <div class="task-card task-card-inline" id="card-task_collector">
+                    <div class="task-card-left">
                         <label class="switch-toggle" data-i18n-title="toggleCollectorTitle" title="فعال/غیرفعال‌سازی بروزرسانی اطلاعات">
                             <input type="checkbox" id="toggle-task_collector" onchange="toggleTask('task_collector', this.checked)">
                             <span class="slider"></span>
                         </label>
-                        <div class="task-card-info">
-                            <h3 data-i18n="taskCollector">📥 بروزرسانی موجودی و پورت‌ها</h3>
-                            <p data-i18n="taskCollectorDesc">استخراج پورت‌های فعال، مدل سخت‌افزار، VLAN و مک‌ها</p>
-                        </div>
+                        <span class="task-inline-title" data-i18n="taskCollector">📥 بروزرسانی مشخصات</span>
+                        <span class="task-info-tooltip" data-i18n-title="taskCollectorDesc" title="استخراج پورت‌های فعال، مدل سخت‌افزار، VLAN و مک‌ها">?</span>
                     </div>
-                    <div class="task-card-footer">
+                    <div class="task-card-right">
                         <span class="schedule-badge" onclick="editTaskInterval('task_collector')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
-                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_collector">1440</span> <span data-i18n="minutes">دقیقه</span>
+                            ⏱ <span id="interval-val-task_collector">1440</span>m
                         </span>
-                        <button class="btn btn-sm btn-secondary" onclick="runAction('collect')" data-i18n="manualRun">▶ اجرای دستی</button>
+                        <button class="btn btn-xs btn-secondary" onclick="runAction('collect')" data-i18n="manualRun">▶</button>
                     </div>
                 </div>
 
                 <!-- Task 3: Status Check -->
-                <div class="task-card" id="card-task_status">
-                    <div class="task-card-header">
+                <div class="task-card task-card-inline" id="card-task_status">
+                    <div class="task-card-left">
                         <label class="switch-toggle" data-i18n-title="toggleStatusTitle" title="فعال/غیرفعال‌سازی پایش وضعیت آنلاین">
                             <input type="checkbox" id="toggle-task_status" onchange="toggleTask('task_status', this.checked)">
                             <span class="slider"></span>
                         </label>
-                        <div class="task-card-info">
-                            <h3 data-i18n="taskStatus">💓 پایش آنلاین/آفلاین و تأخیر</h3>
-                            <p data-i18n="taskStatusDesc">پایش پیوسته پاسخ‌دهی و اندازه‌گیری Latency سوییچ‌ها</p>
-                        </div>
+                        <span class="task-inline-title" data-i18n="taskStatus">💓 پایش پینگ و تأخیر</span>
+                        <span class="task-info-tooltip" data-i18n-title="taskStatusDesc" title="پایش پیوسته پاسخ‌دهی و اندازه‌گیری Latency سوییچ‌ها">?</span>
                     </div>
-                    <div class="task-card-footer">
+                    <div class="task-card-right">
                         <span class="schedule-badge" onclick="editTaskInterval('task_status')" data-i18n-title="editIntervalTitle" title="برای ویرایش زمانبندی کلیک کنید">
-                            ⏱ <span data-i18n="every">هر</span> <span id="interval-val-task_status">1</span> <span data-i18n="minutes">دقیقه</span>
+                            ⏱ <span id="interval-val-task_status">1</span>m
                         </span>
-                        <button class="btn btn-sm btn-secondary" onclick="runAction('check_status')" data-i18n="manualRun">▶ اجرای دستی</button>
+                        <button class="btn btn-xs btn-secondary" onclick="runAction('check_status')" data-i18n="manualRun">▶</button>
                     </div>
                 </div>
 
-            </div>
-
-            <!-- Global Action Status Bar -->
-            <div class="status-bar">
-                <span data-i18n="actionStatusLabel">وضعیت سیستم:</span>
-                <span id="action-status" class="status-badge status-idle" data-i18n="idleStatus">آماده به کار</span>
             </div>
         </section>
 
-        <!-- Main Workspace: Switch Health & Management Card -->
-        <div class="workspace-grid">
+        <!-- Main Workspace: Switch Table -->
+        <section class="table-section">
+            <div class="table-wrapper">
+                <table id="switches-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="ipAddress">آدرس IP</th>
+                            <th data-i18n="hostname">نام دستگاه</th>
+                            <th data-i18n="model">مدل</th>
+                            <th data-i18n="status">وضعیت</th>
+                            <th data-i18n="latency">تأخیر (Ping)</th>
+                            <th data-i18n="ports">پورت‌ها (Up/Total)</th>
+                            <th data-i18n="lastSeen">آخرین پاسخ‌دهی</th>
+                            <th data-i18n="actions">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="8" style="text-align:center; padding: 24px;" data-i18n="noSwitchesRecorded">هیچ سوئیچی در دیتابیس ثبت نشده است.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-            <!-- Switch Inventory & Health Section -->
-            <section class="card-section">
-                <div class="card-header-row">
-                    <div class="tabs-container">
-                        <button class="category-tab active" data-i18n="switchInventory">🖥️ فهرست و پایش سلامت سوییچ‌ها</button>
+        <!-- Floating Code Window Card (Real-Time Terminal Console Drawer) -->
+        <section class="code-window-card floating-console" id="floating-console-drawer">
+            <div class="code-window-header">
+                <div class="code-window-title">
+                    <div class="window-dots" onclick="toggleConsoleDrawer()" style="cursor:pointer;" title="Close Console">
+                        <span class="window-dot dot-red"></span>
+                        <span class="window-dot dot-yellow"></span>
+                        <span class="window-dot dot-green"></span>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-sm btn-secondary" onclick="loadSwitches()" data-i18n="refreshView">🔄 بروزرسانی</button>
-                    </div>
+                    <span data-i18n="realTimeConsole">💻 کنسول اجرای زنده</span>
                 </div>
+                <div style="display:flex; gap:12px; align-items:center;">
+                    <button class="btn-text-clear" onclick="clearConsole()"><span style="margin-inline-end:4px;">🧹</span><span data-i18n="clearConsole">پاکسازی کنسول</span></button>
+                    <button class="btn-console-close" onclick="toggleConsoleDrawer()" title="Close Console">&times;</button>
+                </div>
+            </div>
+            <div class="terminal-body">
+                <pre id="terminal-output" data-i18n="consoleReady">آماده به کار. جهت شروع، یکی از عملیات را انتخاب نمایید...</pre>
+            </div>
+        </section>
 
-                <div class="tab-contents">
-                    <div id="tab-switches" class="tab-pane active">
-                        <div class="table-wrapper">
-                            <table id="switches-table">
-                                <thead>
-                                    <tr>
-                                        <th data-i18n="ipAddress">آدرس IP</th>
-                                        <th data-i18n="hostname">نام دستگاه</th>
-                                        <th data-i18n="model">مدل</th>
-                                        <th data-i18n="status">وضعیت</th>
-                                        <th data-i18n="latency">تأخیر (Ping)</th>
-                                        <th data-i18n="ports">پورت‌ها (Up/Total)</th>
-                                        <th data-i18n="lastSeen">آخرین پاسخ‌دهی</th>
-                                        <th data-i18n="actions">عملیات</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td colspan="8" style="text-align:center; padding: 24px;" data-i18n="noSwitchesRecorded">هیچ سوئیچی در دیتابیس ثبت نشده است.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            <!-- Floating Code Window Card (Real-Time Terminal Console Drawer) -->
-            <section class="code-window-card floating-console" id="floating-console-drawer">
-                <div class="code-window-header">
-                    <div class="code-window-title">
-                        <div class="window-dots" onclick="toggleConsoleDrawer()" style="cursor:pointer;" title="Close Console">
-                            <span class="window-dot dot-red"></span>
-                            <span class="window-dot dot-yellow"></span>
-                            <span class="window-dot dot-green"></span>
-                        </div>
-                        <span data-i18n="realTimeConsole">💻 کنسول اجرای زنده</span>
-                    </div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <button class="btn-text-clear" onclick="clearConsole()"><span style="margin-inline-end:4px;">🧹</span><span data-i18n="clearConsole">پاکسازی کنسول</span></button>
-                        <button class="btn-console-close" onclick="toggleConsoleDrawer()" title="Close Console">&times;</button>
-                    </div>
-                </div>
-                <div class="terminal-body">
-                    <pre id="terminal-output" data-i18n="consoleReady">آماده به کار. جهت شروع، یکی از عملیات را انتخاب نمایید...</pre>
-                </div>
-            </section>
-
-            <!-- Floating Trigger Button -->
-            <button id="floating-console-trigger" class="btn-floating-console" onclick="toggleConsoleDrawer()" title="Live Console">
-                <span class="indicator-dot"></span>
-                <span data-i18n="toggleConsole">کنسول اجرای زنده</span>
+        <!-- Floating Action Controls Group (Bottom Right) -->
+        <div class="floating-controls-group">
+            <button id="floating-refresh-btn" class="btn-floating-pill" onclick="loadSwitches()" data-i18n-title="refreshView" title="بروزرسانی جدول">
+                <span class="btn-icon">🔄</span>
+                <span data-i18n="refreshView">بروزرسانی</span>
             </button>
-
+            <button id="floating-console-trigger" class="btn-floating-pill" onclick="toggleConsoleDrawer()" data-i18n-title="toggleConsole" title="کنسول اجرای زنده">
+                <span class="indicator-dot"></span>
+                <span data-i18n="toggleConsole">کنسول زنده</span>
+            </button>
         </div>
     </main>
 
@@ -218,6 +183,11 @@
                     <label for="wiz-seed" data-i18n="seedSwitchLabel">IP سوئیچ اصلی / Seed (اختیاری)</label>
                     <input type="text" id="wiz-seed" placeholder="e.g. 192.168.30.10, 192.168.30.11" value="{{ settings.seed_ips or '' }}">
                     <span class="form-hint" data-i18n="seedSwitchHint">آدرس IP سوئیچ هسته جهت ردیابی سریع‌تر CDP.</span>
+                </div>
+                <div class="form-group">
+                    <label for="wiz-excluded" data-i18n="excludedIpsLabel">آی‌پی‌های مستثنی‌شده / رادیوها (Excluded IPs)</label>
+                    <input type="text" id="wiz-excluded" placeholder="e.g. 192.168.30.50, 192.168.30.51, 192.168.30.52" value="{{ settings.excluded_ips or '' }}">
+                    <span class="form-hint" data-i18n="excludedIpsHint">آدرس آی‌پی رادیوها یا دستگاه‌های غیرسیسکو را با کاما جدا کنید تا اسکن نشوند.</span>
                 </div>
                 <div class="form-group">
                     <label for="wiz-user" data-i18n="ciscoUserLabel">نام کاربری ورود به سوئیچ</label>
@@ -261,7 +231,7 @@
     </div>
 
     <footer class="app-footer">
-        <p>CiscoToolsV2 Network Control Center &bull; Designed with Warm Editorial Aesthetics</p>
+        <p data-i18n="appFooterText">سامانه پایش سوییچ‌های سیسکو سیم‌بان • بخشی از مجموعه بوم‌بان (Boomban Suite)</p>
     </footer>
 
     <!-- App JavaScript -->

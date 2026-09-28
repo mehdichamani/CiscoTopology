@@ -86,6 +86,7 @@ async def update_config(data: dict):
         password=data.get("password", "").strip(),
         device_type=data.get("device_type", "cisco_ios_telnet").strip(),
         seed_ips=data.get("seed_ips", "").strip(),
+        excluded_ips=data.get("excluded_ips", "").strip(),
         auto_refresh_hours=int(data.get("auto_refresh_hours", 24))
     )
 

@@ -23,10 +23,17 @@ def init_db():
         password TEXT,
         device_type TEXT DEFAULT 'cisco_ios_telnet',
         seed_ips TEXT,
+        excluded_ips TEXT DEFAULT '',
         auto_refresh_hours INTEGER DEFAULT 24,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     """)
+
+    # Run safe column migrations on existing settings table
+    cursor.execute("PRAGMA table_info(settings);")
+    existing_settings_cols = [row[1] for row in cursor.fetchall()]
+    if "excluded_ips" not in existing_settings_cols:
+        cursor.execute("ALTER TABLE settings ADD COLUMN excluded_ips TEXT DEFAULT '';")
 
     # 2. Switches Table
     cursor.execute("""
@@ -190,26 +197,100 @@ def is_configured():
 def get_settings():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT subnet, username, password, device_type, seed_ips, auto_refresh_hours, updated_at FROM settings WHERE id = 1")
+    cursor.execute("SELECT subnet, username, password, device_type, seed_ips, excluded_ips, auto_refresh_hours, updated_at FROM settings WHERE id = 1")
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else {}
 
-def save_settings(subnet, username="", password="", device_type="cisco_ios_telnet", seed_ips="", auto_refresh_hours=24):
+def get_excluded_ips_set():
+    """
+    Returns a set of normalized IP strings that should be excluded from scanning and collection.
+    Supports:
+      - Single IPs: '192.168.30.50'
+      - Range formats: '192.168.30.100-150' or '192.168.30.100-192.168.30.150'
+      - Subnets/CIDR: '192.168.30.128/28'
+    """
+    import ipaddress
+    env_excluded = os.getenv("EXCLUDED_IPS", "")
+    settings = get_settings()
+    db_excluded = settings.get("excluded_ips", "") or ""
+    
+    combined = f"{env_excluded},{db_excluded}"
+    excluded_set = set()
+    for token in combined.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        
+        # 1. Check if CIDR (e.g. 192.168.30.0/28)
+        if "/" in item:
+            try:
+                net = ipaddress.ip_network(item, strict=False)
+                for h in net:
+                    excluded_set.add(str(h))
+                continue
+            except Exception:
+                pass
+
+        # 2. Check if hyphen range (e.g. 192.168.30.100-150 or 192.168.30.100-192.168.30.150)
+        if "-" in item:
+            parts = item.split("-")
+            start_str = parts[0].strip()
+            end_str = parts[1].strip()
+            
+            try:
+                start_ip = ipaddress.ip_address(start_str)
+                if "." in end_str:
+                    end_ip = ipaddress.ip_address(end_str)
+                else:
+                    # e.g. 192.168.30.100-150 -> base is 192.168.30. + 150
+                    octets = start_str.split(".")
+                    end_full = f"{octets[0]}.{octets[1]}.{octets[2]}.{end_str}"
+                    end_ip = ipaddress.ip_address(end_full)
+                
+                if int(start_ip) <= int(end_ip):
+                    cur_int = int(start_ip)
+                    end_int = int(end_ip)
+                    while cur_int <= end_int:
+                        excluded_set.add(str(ipaddress.ip_address(cur_int)))
+                        cur_int += 1
+                continue
+            except Exception:
+                pass
+
+        # 3. Plain IP
+        excluded_set.add(item)
+
+    return excluded_set
+
+def save_settings(subnet, username="", password="", device_type="cisco_ios_telnet", seed_ips="", excluded_ips="", auto_refresh_hours=24):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO settings (id, subnet, username, password, device_type, seed_ips, auto_refresh_hours, updated_at)
-    VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO settings (id, subnet, username, password, device_type, seed_ips, excluded_ips, auto_refresh_hours, updated_at)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
         subnet=excluded.subnet,
         username=excluded.username,
         password=excluded.password,
         device_type=excluded.device_type,
         seed_ips=excluded.seed_ips,
+        excluded_ips=excluded.excluded_ips,
         auto_refresh_hours=excluded.auto_refresh_hours,
         updated_at=CURRENT_TIMESTAMP;
-    """, (subnet, username, password, device_type, seed_ips, auto_refresh_hours))
+    """, (subnet, username, password, device_type, seed_ips, excluded_ips, auto_refresh_hours))
+    conn.commit()
+    conn.close()
+
+def delete_switch(ip: str):
+    """Remove a non-switch device or excluded IP from all database tables."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM switches WHERE ip = ?", (ip,))
+    cursor.execute("DELETE FROM switch_ports WHERE switch_ip = ?", (ip,))
+    cursor.execute("DELETE FROM links WHERE source_switch = ? OR target_switch = ?", (ip, ip))
+    cursor.execute("DELETE FROM vlans WHERE switch = ?", (ip,))
+    cursor.execute("DELETE FROM connected_devices WHERE switch_name = ?", (ip,))
     conn.commit()
     conn.close()
 
