@@ -650,6 +650,41 @@ th {
     letter-spacing: 0.5px;
 }
 
+th.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+th.sortable-th:hover {
+    color: var(--color-primary);
+    background-color: var(--bg-card);
+}
+
+.sort-icon {
+    display: inline-block;
+    font-size: 0.75rem;
+    opacity: 0.4;
+    margin-inline-start: 4px;
+    transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+
+th.sortable-th:hover .sort-icon {
+    opacity: 0.8;
+}
+
+th.sortable-th.sorted-asc,
+th.sortable-th.sorted-desc {
+    color: var(--color-primary);
+}
+
+th.sortable-th.sorted-asc .sort-icon,
+th.sortable-th.sorted-desc .sort-icon {
+    opacity: 1;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
 tr:last-child td {
     border-bottom: none;
 }
@@ -982,33 +1017,217 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
     margin-top: 4px;
 }
 
-/* Switch Details Layout */
-.sw-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 20px;
+/* --------------------------------------------------------------------------
+   Modal Details - KPI Overview Bar, Tabs & Toolbars
+   -------------------------------------------------------------------------- */
+.modal-card-wide {
+    max-width: 960px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 28px;
 }
 
-.sw-info-block {
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Switch Header KPI Bar */
+.sw-overview-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.kpi-mini-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--rounded-lg);
-    padding: 14px 18px;
+    padding: 10px 14px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 4px;
 }
 
-.sw-prop {
+.kpi-mini-label {
+    font-size: 0.75rem;
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+.kpi-mini-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kpi-progress-bar {
+    width: 100%;
+    height: 4px;
+    background-color: var(--border-color);
+    border-radius: var(--rounded-pill);
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.kpi-progress-fill {
+    height: 100%;
+    background-color: var(--color-primary);
+    border-radius: var(--rounded-pill);
+    transition: width 0.3s ease;
+}
+
+/* Modal Tab Navigation */
+.modal-tabs-nav {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.modal-tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-subtle);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: var(--rounded-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-tab-btn:hover {
+    color: var(--text-main);
+    background-color: var(--bg-main);
+}
+
+.modal-tab-btn.active {
+    background-color: var(--bg-card-elevated);
+    color: var(--color-primary);
+    border-color: var(--border-color);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.modal-tab-badge {
+    background-color: var(--bg-main);
+    color: var(--text-subtle);
+    font-size: 0.72rem;
+    padding: 1px 6px;
+    border-radius: var(--rounded-pill);
+    border: 1px solid var(--border-color);
+}
+
+.modal-tab-btn.active .modal-tab-badge {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* Modal Tab Panes */
+.modal-tab-pane {
+    display: none;
+    animation: fadeIn 0.15s ease;
+}
+
+.modal-tab-pane.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal Interactive Toolbar */
+.modal-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.85rem;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
-.sw-prop-label { color: var(--text-subtle); }
+.modal-search-box {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    max-width: 380px;
+}
 
+.modal-search-box input {
+    width: 100%;
+    height: 34px;
+    padding: 0 32px 0 12px;
+    font-size: 0.82rem;
+    border-radius: var(--rounded-md);
+}
+
+html[dir="ltr"] .modal-search-box input {
+    padding: 0 12px 0 32px;
+}
+
+.modal-search-icon {
+    position: absolute;
+    inset-inline-end: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+    pointer-events: none;
+}
+
+html[dir="ltr"] .modal-search-icon {
+    inset-inline-end: auto;
+    inset-inline-start: 10px;
+}
+
+.modal-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-filter-btn {
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    color: var(--text-subtle);
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: var(--rounded-pill);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.modal-filter-btn:hover {
+    color: var(--text-main);
+    border-color: var(--color-primary);
+}
+
+.modal-filter-btn.active {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* Section Card & VLAN Chips Inside Modal */
 .sw-section-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -1019,7 +1238,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 
 .sw-section-card h4 {
     font-family: var(--font-serif);
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: var(--color-primary);
     margin-bottom: 12px;
 }
@@ -1034,7 +1253,7 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
     background-color: var(--bg-main);
     border: 1px solid var(--border-color);
     color: var(--text-main);
-    padding: 4px 12px;
+    padding: 5px 12px;
     border-radius: var(--rounded-pill);
     font-size: 0.8rem;
 }
@@ -1052,6 +1271,31 @@ input[type="text"]:focus, input[type="password"]:focus, select:focus {
 
 .mini-table th {
     background-color: var(--bg-main);
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+.mini-table th.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.mini-table th.sortable-th:hover {
+    color: var(--color-primary);
+    background-color: var(--bg-card);
+}
+
+.mini-table th.sortable-th.sorted-asc,
+.mini-table th.sortable-th.sorted-desc {
+    color: var(--color-primary);
+}
+
+.mini-table th.sortable-th.sorted-asc .sort-icon,
+.mini-table th.sortable-th.sorted-desc .sort-icon {
+    opacity: 1;
+    font-weight: bold;
+    color: var(--color-primary);
 }
 
 /* Footer Copyright */

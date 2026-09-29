@@ -88,7 +88,21 @@ const TRANSLATIONS = {
         statusCheck: "پایش وضعیت (Ping)",
         toggleConsole: "کنسول زنده",
         appFooterText: "سامانه پایش سوییچ‌های سیسکو سیم‌بان • بخشی از مجموعه بوم‌بان (Boomban Suite)",
-        closeModal: "بستن"
+        closeModal: "بستن",
+        tabPorts: "🔌 پورت‌ها و اتصالات",
+        tabCdp: "↔ لینک‌های همسایه (CDP)",
+        tabVlans: "📊 شبکه‌های مجازی (VLAN)",
+        tabDevices: "📱 دستگاه‌های متصل",
+        searchPortsPlaceholder: "جستجو در پورت، مک یا VLAN...",
+        searchDevicesPlaceholder: "جستجو در مک، آی‌پی، نام یا سازنده...",
+        filterAll: "همه وضعیت‌ها",
+        filterUp: "فقط پورت‌های فعال (Up)",
+        filterDown: "فقط پورت‌های غیرفعال (Down)",
+        portUtilization: "بهره‌وری پورت‌ها",
+        iosVer: "نسخه IOS",
+        speed: "سرعت",
+        duplex: "داپلکس",
+        connectedDevice: "دستگاه متصل"
     },
     en: {
         brand: "Simban",
@@ -185,6 +199,20 @@ const TRANSLATIONS = {
         statusCheck: "Status Check",
         toggleConsole: "Live Console",
         appFooterText: "Simban Cisco Switch Intelligence • Boomban Suite",
-        closeModal: "Close"
+        closeModal: "Close",
+        tabPorts: "🔌 Ports & Interfaces",
+        tabCdp: "↔ CDP & Neighbors",
+        tabVlans: "📊 VLANs",
+        tabDevices: "📱 Connected Devices",
+        searchPortsPlaceholder: "Search port, MAC, or VLAN...",
+        searchDevicesPlaceholder: "Search MAC, IP, Name or Vendor...",
+        filterAll: "All Statuses",
+        filterUp: "Active (Up) Only",
+        filterDown: "Inactive (Down) Only",
+        portUtilization: "Port Utilization",
+        iosVer: "IOS Version",
+        speed: "Speed",
+        duplex: "Duplex",
+        connectedDevice: "Connected Device"
     }
 };

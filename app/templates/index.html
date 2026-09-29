@@ -113,13 +113,13 @@
                 <table id="switches-table">
                     <thead>
                         <tr>
-                            <th data-i18n="ipAddress">آدرس IP</th>
-                            <th data-i18n="hostname">نام دستگاه</th>
-                            <th data-i18n="model">مدل</th>
-                            <th data-i18n="status">وضعیت</th>
-                            <th data-i18n="latency">تأخیر (Ping)</th>
-                            <th data-i18n="ports">پورت‌ها (Up/Total)</th>
-                            <th data-i18n="lastSeen">آخرین پاسخ‌دهی</th>
+                            <th class="sortable-th" data-sort-key="ip" onclick="sortTable('ip')"><span data-i18n="ipAddress">آدرس IP</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="hostname" onclick="sortTable('hostname')"><span data-i18n="hostname">نام دستگاه</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="model" onclick="sortTable('model')"><span data-i18n="model">مدل</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="status" onclick="sortTable('status')"><span data-i18n="status">وضعیت</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="latency_ms" onclick="sortTable('latency_ms')"><span data-i18n="latency">تأخیر (Ping)</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="ports_up" onclick="sortTable('ports_up')"><span data-i18n="ports">پورت‌ها (Up/Total)</span> <span class="sort-icon">↕</span></th>
+                            <th class="sortable-th" data-sort-key="last_seen" onclick="sortTable('last_seen')"><span data-i18n="lastSeen">آخرین پاسخ‌دهی</span> <span class="sort-icon">↕</span></th>
                             <th data-i18n="actions">عملیات</th>
                         </tr>
                     </thead>
